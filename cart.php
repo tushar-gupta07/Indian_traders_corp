@@ -42,7 +42,94 @@ $offers = [];
 $o = $conn->prepare("SELECT icon, offer_text, valid_note FROM product_offers WHERE (product_id = ? OR (product_id IS NULL AND category = ?)) AND is_active = 1 ORDER BY sort_order");
 $o->bind_param("is", $pid, $product['category']); $o->execute(); $oResult = $o->get_result();
 while ($row = $oResult->fetch_assoc()) $offers[] = $row;
+// ── VARIANT GROUPS FETCH ──────────────────────────────
+$variantGroups = [];
+$vg = $conn->prepare(
+    "SELECT id, group_name, sort_order FROM product_variant_groups 
+     WHERE product_id = ? ORDER BY sort_order"
+);
+$vg->bind_param("i", $pid);
+$vg->execute();
+$vgResult = $vg->get_result();
 
+while ($grp = $vgResult->fetch_assoc()) {
+    $vo = $conn->prepare(
+        "SELECT id, option_label, is_default, sort_order 
+         FROM product_variant_options 
+         WHERE group_id = ? ORDER BY sort_order"
+    );
+    $vo->bind_param("i", $grp['id']);
+    $vo->execute();
+    $grp['options'] = $vo->get_result()->fetch_all(MYSQLI_ASSOC);
+    $variantGroups[] = $grp;
+}
+
+$variantGroupsJSON = json_encode(
+    $variantGroups,
+    JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT
+);
+function renderVariants(array $groups, string $ctx): void {
+    foreach ($groups as $grp) {
+        $gid  = (int)$grp['id'];
+        $name = htmlspecialchars($grp['group_name']);
+        $opts = $grp['options'];
+        $slug = 'vg-' . $gid . '-' . $ctx;
+
+        // default label
+        $defLabel = '';
+        foreach ($opts as $o) {
+            if ($o['is_default']) { $defLabel = htmlspecialchars($o['option_label']); break; }
+        }
+        if (!$defLabel && !empty($opts)) $defLabel = htmlspecialchars($opts[0]['option_label']);
+
+        // Size group = only 2 options = min/max range display
+$isRange = (strtolower($name) === 'size');
+        if ($ctx === 'desktop') {
+            echo '<div style="margin-bottom:16px;">';
+            if ($isRange) {
+                $min = htmlspecialchars($opts[0]['option_label']);
+                $max = htmlspecialchars($opts[1]['option_label']);
+                echo '<div style="font-size:13px;font-weight:800;color:#fff;font-family:Inter,sans-serif;">';
+                echo $name . ': <span style="font-weight:600;color:rgba(255,255,255,.7);">' . $min . ' – ' . $max . '</span>';
+                echo '</div>';
+            } else {
+                echo '<div style="font-size:13px;font-weight:800;color:#fff;margin-bottom:8px;font-family:Inter,sans-serif;">';
+                echo $name . ': <span class="' . $slug . '-label" style="font-weight:600;color:rgba(255,255,255,.7);">' . $defLabel . '</span>';
+                echo '</div>';
+                echo '<div class="variant-pills ' . $slug . '">';
+                foreach ($opts as $o) {
+                    $val = htmlspecialchars($o['option_label']);
+                    $sel = $o['is_default'] ? ' selected' : '';
+                    echo '<button class="variant-pill-dark' . $sel . '" ';
+                    echo 'onclick="selectVariantDesktop(\'' . $slug . '\',\'' . addslashes($val) . '\',this)">';
+                    echo $val . '</button>';
+                }
+                echo '</div>';
+            }
+            echo '</div>';
+
+        } else { // mobile
+            echo '<div class="mob-variant-block">';
+            if ($isRange) {
+                $min = htmlspecialchars($opts[0]['option_label']);
+                $max = htmlspecialchars($opts[1]['option_label']);
+                echo '<div class="mob-variant-lbl">' . $name . ': ';
+                echo '<span class="mob-variant-selected">' . $min . ' – ' . $max . '</span></div>';
+            } else {
+                echo '<div class="mob-variant-lbl">' . $name . ': ';
+                echo '<span class="mob-variant-selected ' . $slug . '-mob-label">' . $defLabel . '</span></div>';
+                echo '<select class="mob-variant-select" onchange="updateMobLabel(\'' . $slug . '\',this.value)">';
+                foreach ($opts as $o) {
+                    $val = htmlspecialchars($o['option_label']);
+                    $sel = $o['is_default'] ? ' selected' : '';
+                    echo '<option' . $sel . '>' . $val . '</option>';
+                }
+                echo '</select>';
+            }
+            echo '</div>';
+        }
+    }
+}
 $images = [];
 $i = $conn->prepare("SELECT image_path, alt_text FROM product_images WHERE product_id = ? ORDER BY sort_order");
 $i->bind_param("i", $pid); $i->execute(); $iResult = $i->get_result();
@@ -62,7 +149,12 @@ function formatINR($price) { return '₹' . number_format($price, 0, '.', ','); 
 
 $mrpDisplay = $product['mrp'] > 0 ? $product['mrp'] : round($product['price_min'] * 1.17);
 $savings    = $mrpDisplay - $product['price_min'];
-
+// TEMP: force 3 demo images for thumbnail testing — remove when DB has real gallery images
+$images = [];
+if (!empty($product['image1'])) $images[] = ['image_path' => $product['image1'], 'alt_text' => $product['name']];
+if (!empty($product['image2'])) $images[] = ['image_path' => $product['image2'], 'alt_text' => $product['name']];
+if (!empty($product['image3'])) $images[] = ['image_path' => $product['image3'], 'alt_text' => $product['name']];
+if (empty($images)) $images[] = ['image_path' => $product['image'], 'alt_text' => $product['name']];
 $productJSON      = json_encode($product,      JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT);
 $specsJSON        = json_encode($specs,         JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT);
 $featuresJSON     = json_encode($features,      JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT);
@@ -1554,8 +1646,9 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
     }
 
     .desc-title {
-        font-family: 'Playfair Display', serif;
+        font-family: 'sora',sans-serif;
         font-size: 20px;
+        font-weight: 700;
         color: var(--text);
         margin-bottom: 12px;
         padding-bottom: 12px;
@@ -1570,11 +1663,15 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
     }
 
     @media(max-width:640px) {
-        .desc-title {
-            font-size: 18px;
-            margin-bottom: 10px;
-            padding-bottom: 10px
-        }
+      .desc-title {
+    font-family: 'Sora', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
 
         .desc-text {
             font-size: 12px;
@@ -1771,29 +1868,65 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
     }
 
     .r-card-name {
-        font-size: 11px;
-        font-weight: 700;
-        color: var(--navy);
-        line-height: 1.4;
-        margin-bottom: 4px;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-        min-height: 28px;
-        word-break: break-word
-            /* FIX: long product names won't overflow */
-    }
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--navy);
+    line-height: 1.45;
+    margin-bottom: 10px;
 
-    .r-card-price {
-        font-family: 'Playfair Display', serif;
-        font-size: 15px;
-        color: var(--red);
-        margin-bottom: 8px;
-        word-break: break-word
-            /* FIX: long price ranges */
-    }
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 
+    min-height: 38px;
+    word-break: break-word;
+}
+
+  .r-card-price-box {
+    background: #fff7f7;
+    border: 1px solid rgba(183, 28, 28, 0.12);
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+}
+
+.r-card-price-label {
+    font-size: 9px;
+    font-weight: 800;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: 3px;
+}
+
+.r-card-price-row {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+
+.r-card-price {
+    font-family: 'Sora', sans-serif;
+    font-size: 15px;
+    font-weight: 900;
+    color: var(--red);
+    line-height: 1.2;
+}
+
+.r-card-price-max {
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+}
+
+.r-card-price-note {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-top: 3px;
+}
     .r-card-btn {
         width: 100%;
         background: var(--navy);
@@ -3890,6 +4023,1310 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
             color: var(--text);
         }
     }
+    /* ===== CART.PHP PROFESSIONAL UI POLISH ===== */
+
+body {
+    background: linear-gradient(180deg, #f5f7fb 0%, #eef2f7 100%) !important;
+}
+
+/* Main white cards */
+.block,
+.trust-nums,
+.desc-card {
+    border-radius: 18px !important;
+    border: 1px solid #dfe7f2 !important;
+    background: #ffffff !important;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Section header */
+.block-head {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
+    padding: 16px 22px !important;
+}
+
+.block-head-title {
+    font-size: 13px !important;
+    font-weight: 900 !important;
+    letter-spacing: .08em !important;
+    color: #111827 !important;
+}
+
+/* Technical specifications */
+.spec-row:hover {
+    background: #f8fbff !important;
+}
+
+.sk {
+    background: #f8fafc !important;
+    color: #64748b !important;
+    font-size: 11px !important;
+    font-weight: 900 !important;
+}
+
+.sv {
+    color: #111827 !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+}
+
+/* Tabs */
+.tabs-bar {
+    background: #f8fafc !important;
+    padding: 8px 10px 0 !important;
+    gap: 6px !important;
+}
+
+.tab-btn {
+    border-radius: 10px 10px 0 0 !important;
+    font-size: 11px !important;
+    font-weight: 900 !important;
+}
+
+.tab-btn.on {
+    background: #ffffff !important;
+    color: #b71c1c !important;
+}
+
+/* Description */
+.desc-title {
+    font-size: 22px !important;
+    font-weight: 900 !important;
+    color: #111827 !important;
+    letter-spacing: -0.4px !important;
+}
+
+.desc-text {
+    font-size: 14px !important;
+    color: #64748b !important;
+    line-height: 1.8 !important;
+}
+
+/* Why choose boxes */
+.why-grid {
+    gap: 12px !important;
+}
+
+.why-item {
+    background: linear-gradient(180deg, #f0fdf4 0%, #ecfdf5 100%) !important;
+    border: 1px solid #bbf7d0 !important;
+    border-radius: 12px !important;
+    padding: 12px 14px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    box-shadow: 0 4px 14px rgba(22, 163, 74, 0.06) !important;
+    transition: transform .2s ease, box-shadow .2s ease !important;
+}
+
+.why-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 22px rgba(22, 163, 74, 0.12) !important;
+}
+
+/* Right side cards */
+.trust-nums,
+.desc-card {
+    padding: 20px !important;
+}
+
+.tn-title,
+.desc-card-title {
+    font-size: 12px !important;
+    font-weight: 900 !important;
+    letter-spacing: .09em !important;
+    color: #475569 !important;
+}
+
+.tn-item {
+    border-radius: 12px !important;
+    padding: 14px 10px !important;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06) !important;
+}
+
+.tn-val {
+    font-size: 22px !important;
+    font-weight: 900 !important;
+}
+
+.desc-card-text {
+    font-size: 14px !important;
+    line-height: 1.8 !important;
+    color: #64748b !important;
+}
+
+/* Related products */
+.related-grid {
+    gap: 18px !important;
+    padding: 22px !important;
+}
+
+.r-card {
+    border-radius: 16px !important;
+    border: 1px solid #dfe7f2 !important;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06) !important;
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease !important;
+}
+
+.r-card:hover {
+    transform: translateY(-5px) !important;
+    border-color: #0a2463 !important;
+    box-shadow: 0 16px 36px rgba(10, 36, 99, 0.16) !important;
+}
+
+.r-card-img {
+    height: 145px !important;
+    background: linear-gradient(180deg, #f8fafc 0%, #eef3f9 100%) !important;
+    padding: 18px !important;
+}
+
+.r-card-body {
+    padding: 14px !important;
+}
+
+.r-card-name {
+    font-size: 13px !important;
+    font-weight: 900 !important;
+    line-height: 1.45 !important;
+    color: #0a2463 !important;
+    margin-bottom: 10px !important;
+    min-height: 38px !important;
+}
+
+.r-card-price {
+    font-family: 'Sora', sans-serif !important;
+    font-size: 15px !important;
+    font-weight: 900 !important;
+    color: #b71c1c !important;
+    background: #fff7f7 !important;
+    border: 1px solid rgba(183, 28, 28, 0.14) !important;
+    padding: 8px 10px !important;
+    border-radius: 10px !important;
+    margin-bottom: 12px !important;
+}
+
+.r-card-btn {
+    padding: 10px !important;
+    border-radius: 10px !important;
+    font-size: 11px !important;
+    background: linear-gradient(135deg, #0a2463, #123a8c) !important;
+}
+
+.r-card-btn:hover {
+    background: linear-gradient(135deg, #061540, #0a2463) !important;
+}
+    </style>
+    <style>
+    @media(max-width:860px) {
+
+        .mob-ships-strip {
+            background: #fde047;
+            color: #1a1e2e;
+            font-size: 12px;
+            font-weight: 800;
+            text-align: center;
+            padding: 9px 12px;
+            letter-spacing: .02em;
+        }
+
+        .mob-img-row {
+            display: flex;
+            gap: 10px;
+            padding: 14px;
+            background: #fff;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .mob-img-main {
+            position: relative;
+            flex: 1;
+            min-width: 0;
+            height: 230px;
+            background: #f8fafc;
+            border-radius: var(--r8);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mob-img-main img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            padding: 10px;
+        }
+
+        .mob-instock-badge {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            z-index: 5;
+        }
+
+        .mob-img-thumbs {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            flex-shrink: 0;
+            width: 58px;
+        }
+
+        .mob-img-thumbs .thumb-item {
+            width: 58px;
+            height: 64px;
+            border: 1.5px solid var(--border);
+            border-radius: var(--r8);
+            overflow: hidden;
+            background: #f8fafc;
+            cursor: pointer;
+        }
+
+        .mob-img-thumbs .thumb-item.on {
+            border-color: var(--navy);
+            box-shadow: 0 0 0 2px rgba(10, 36, 99, .15);
+        }
+
+        .mob-img-thumbs .thumb-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: 3px;
+        }
+
+        .mob-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 19px;
+            font-weight: 800;
+            color: var(--text);
+            padding: 14px 16px 0;
+            line-height: 1.3;
+        }
+
+        .mob-desc {
+            font-size: 12px;
+            color: var(--muted);
+            padding: 4px 16px 0;
+            line-height: 1.6;
+        }
+
+        .mob-rating {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            padding: 10px 16px 0;
+            border-bottom: none;
+        }
+
+        .mob-price-block {
+            padding: 12px 16px 0;
+            border-bottom: none;
+        }
+
+        .mob-price-row {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 4px;
+        }
+
+        .mob-price {
+            font-family: 'Playfair Display', serif;
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .mob-qty-gst-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            padding: 12px 16px 0;
+        }
+
+        .mob-gst-pill {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--muted);
+            border: 1px solid var(--border);
+            padding: 6px 12px;
+            border-radius: 20px;
+            background: #f8fafc;
+            white-space: nowrap;
+        }
+
+        .mob-min-order-txt {
+            font-size: 10px;
+            color: var(--faint);
+            padding: 6px 16px 0;
+        }
+
+        .mob-variant-block {
+            padding: 14px 16px 0;
+        }
+
+        .mob-variant-lbl {
+            font-size: 12px;
+            font-weight: 800;
+            color: var(--text);
+            margin-bottom: 6px;
+        }
+
+        .mob-variant-selected {
+            font-weight: 600;
+            color: var(--muted);
+        }
+
+        .mob-variant-select {
+            width: 100%;
+            border: 1.5px solid var(--navy);
+            border-radius: var(--r8);
+            padding: 10px 36px 10px 12px;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--navy);
+            background-color: #fff;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230a2463' stroke-width='2'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+            cursor: pointer;
+            font-family: 'Sora', sans-serif;
+        }
+
+        .mob-product-section .mob-btns {
+            padding: 16px 16px 16px;
+        }
+    }
+
+    /* ===== FONT OVERRIDE — Industrywaala style sans-serif ===== */
+    .mob-title,
+    .mob-price,
+    .mob-mrp,
+    .mob-desc,
+    .mob-rating-text,
+    .mob-gst,
+    .mob-save,
+    .mob-stock,
+    .mob-variant-lbl,
+    .mob-variant-selected,
+    .mob-variant-select,
+    .mob-gst-pill,
+    .mob-min-order-txt {
+        font-family: 'Sora', sans-serif !important;
+    }
+
+    .mob-title {
+        font-size: 17px !important;
+        font-weight: 700 !important;
+        line-height: 1.35 !important;
+    }
+
+    .mob-price {
+        font-size: 22px !important;
+        font-weight: 700 !important;
+    }
+
+    @media(max-width:860px) {
+        .mob-qty-gst-row {
+            flex-wrap: nowrap !important;
+            gap: 10px !important;
+        }
+
+        .mob-qty-gst-row .qty-box {
+            flex: 1 !important;
+            max-width: none !important;
+            display: flex !important;
+        }
+
+        .mob-qty-gst-row .qty-box button {
+            flex-shrink: 0 !important;
+            width: 36px !important;
+            height: 40px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+
+        .mob-qty-gst-row .qty-box input {
+            flex: 1 !important;
+            width: auto !important;
+            height: 40px !important;
+            min-width: 0 !important;
+        }
+
+        .mob-gst-pill {
+            flex: 1 !important;
+            text-align: center !important;
+            white-space: nowrap !important;
+            padding: 10px 8px !important;
+        }
+    }
+
+    @media(max-width:860px) {
+        .mob-title {
+            margin-bottom: 2px !important;
+        }
+
+        .mob-desc {
+            margin-bottom: 4px !important;
+        }
+
+        .mob-rating {
+            padding-bottom: 6px !important;
+            margin-bottom: 2px !important;
+        }
+
+        .mob-price-block {
+            padding-bottom: 6px !important;
+        }
+
+        .mob-variant-block {
+            margin-bottom: 2px !important;
+            padding-bottom: 2px !important;
+        }
+
+        .mob-variant-block:last-of-type {
+            margin-bottom: 4px !important;
+        }
+    }
+
+    @media(max-width:860px) {
+        .mob-ships-strip {
+            background: transparent !important;
+            padding: 10px 16px 0 !important;
+            text-align: left !important;
+        }
+
+        .mob-ships-strip span {
+            display: inline-flex;
+            align-items: center;
+            background: rgba(22, 163, 74, .1);
+            border: 1px solid rgba(22, 163, 74, .25);
+            color: var(--green);
+            font-size: 10px;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 20px;
+            letter-spacing: 0;
+        }
+    }
+
+    .mob-size-slider {
+        width: 100%;
+        margin: 6px 0 4px;
+        accent-color: var(--navy);
+        height: 4px;
+    }
+
+    .mob-size-slider-labels {
+        display: flex;
+        justify-content: space-between;
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--muted);
+        margin-top: 4px;
+    }
+    /* ═══════════════════════════════════
+   HERO BAND
+═══════════════════════════════════ */
+.hero-band {
+    background: linear-gradient(135deg, #0a2463 0%, #0d2d7a 60%, #1a3a9a 100%);
+    padding: 36px 0 0
+}
+
+.hero-inner {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 0 28px;
+    display: grid;
+    grid-template-columns: 480px 1fr;
+    gap: 40px;
+    align-items: stretch
+}
+
+@media(max-width:1100px) {
+    .hero-inner {
+        grid-template-columns: 1fr 360px;
+        gap: 28px
+    }
+}
+
+@media(max-width:860px) {
+    .hero-band {
+        padding: 24px 0 0
+    }
+
+    .hero-inner {
+        grid-template-columns: 1fr;
+        gap: 0;
+        padding: 0 20px
+    }
+}
+
+@media(max-width:640px) {
+    .hero-band {
+        padding: 20px 0 0
+    }
+
+    .hero-inner {
+        padding: 0 16px
+    }
+}
+
+/* LEFT */
+.hero-left {
+    padding-bottom: 32px
+}
+
+.hero-cat {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, .12);
+    border: 1px solid rgba(255, 255, 255, .2);
+    color: rgba(255, 255, 255, .85);
+    font-size: 10px;
+    font-weight: 800;
+    padding: 4px 14px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    margin-bottom: 16px
+}
+
+.hero-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 30px;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1.25;
+    margin-bottom: 8px
+}
+
+.hero-sub {
+    font-size: 13px;
+    color: rgba(255, 255, 255, .6);
+    font-weight: 400;
+    margin-bottom: 18px;
+    line-height: 1.6
+}
+
+@media(max-width:680px) {
+    .hero-left {
+        padding-bottom: 20px
+    }
+
+    .hero-cat {
+        font-size: 9px;
+        padding: 3px 12px;
+        gap: 4px;
+        margin-bottom: 12px
+    }
+
+    .hero-title {
+        font-size: 22px;
+        margin-bottom: 6px
+    }
+
+    .hero-sub {
+        font-size: 12px;
+        margin-bottom: 14px
+    }
+}
+
+@media(max-width:480px) {
+    .hero-title {
+        font-size: 20px;
+        line-height: 1.3
+    }
+
+    .hero-sub {
+        font-size: 11px
+    }
+}
+
+.hero-rating {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 20px
+}
+
+.stars {
+    display: flex;
+    gap: 2px
+}
+
+.stars svg {
+    width: 14px;
+    height: 14px
+}
+
+.r-text {
+    font-size: 12px;
+    color: rgba(255, 255, 255, .65);
+    font-weight: 600
+}
+
+.r-div {
+    color: rgba(255, 255, 255, .2)
+}
+
+.stock-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(22, 163, 74, .2);
+    border: 1px solid rgba(22, 163, 74, .4);
+    color: #4ade80;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 3px 10px;
+    border-radius: 20px;
+    letter-spacing: .04em
+}
+
+@media(max-width:640px) {
+    .hero-rating {
+        gap: 8px;
+        margin-bottom: 16px
+    }
+
+    .stars svg {
+        width: 13px;
+        height: 13px
+    }
+
+    .r-text {
+        font-size: 11px
+    }
+
+    .stock-pill {
+        font-size: 9px;
+        padding: 2px 8px
+    }
+}
+
+/* PRICE BLOCK */
+.hero-price-block {
+    background: rgba(255, 255, 255, .08);
+    border: 1px solid rgba(255, 255, 255, .15);
+    border-radius: var(--r16);
+    padding: 18px 20px;
+    margin-bottom: 20px;
+    backdrop-filter: blur(8px)
+}
+
+.hero-mrp {
+    font-size: 12px;
+    color: rgba(255, 255, 255, .45);
+    text-decoration: line-through;
+    margin-bottom: 6px
+}
+
+.hero-price-row {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 6px
+}
+
+.hero-price {
+    font-family: 'Playfair Display', serif;
+    font-size: 38px;
+    color: #fff;
+    line-height: 1
+}
+
+.hero-price-calc {
+    font-size: 12px;
+    color: rgba(255, 255, 255, .5)
+}
+
+.hero-gst {
+    font-size: 11px;
+    color: rgba(255, 255, 255, .4);
+    margin-bottom: 10px
+}
+
+.hero-save {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(22, 163, 74, .15);
+    border: 1px solid rgba(22, 163, 74, .3);
+    color: #4ade80;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 20px
+}
+
+@media(max-width:680px) {
+    .hero-price-block {
+        padding: 14px 16px;
+        margin-bottom: 16px;
+        border-radius: var(--r12)
+    }
+
+    .hero-mrp {
+        font-size: 11px;
+        margin-bottom: 4px
+    }
+
+    .hero-price {
+        font-size: 28px
+    }
+
+    .hero-price-calc {
+        font-size: 11px
+    }
+
+    .hero-gst {
+        font-size: 10px;
+        margin-bottom: 8px
+    }
+
+    .hero-save {
+        font-size: 10px;
+        padding: 3px 10px
+    }
+}
+
+@media(max-width:480px) {
+    .hero-price {
+        font-size: 24px
+    }
+
+    .hero-price-row {
+        gap: 8px
+    }
+}
+
+/* QTY + CTA */
+.hero-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px
+}
+
+.qty-box {
+    display: flex;
+    align-items: center;
+    border: 2px solid rgba(255, 255, 255, .3);
+    border-radius: var(--r8);
+    overflow: hidden;
+    background: rgba(255, 255, 255, .08)
+}
+
+.qty-box button {
+    width: 36px;
+    height: 42px;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .15s;
+    -webkit-tap-highlight-color: transparent
+}
+
+.qty-box button:hover {
+    background: rgba(255, 255, 255, .15)
+}
+
+.qty-box input {
+    width: 46px;
+    height: 42px;
+    text-align: center;
+    background: transparent;
+    border: none;
+    border-left: 1px solid rgba(255, 255, 255, .2);
+    border-right: 1px solid rgba(255, 255, 255, .2);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 800;
+    outline: none;
+    font-family: 'Inter', sans-serif
+}
+
+.cta-cart {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--green);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 800;
+    padding: 12px 24px;
+    border-radius: var(--r8);
+    border: none;
+    cursor: pointer;
+    transition: background .2s, transform .15s, box-shadow .2s;
+    letter-spacing: .04em;
+    box-shadow: 0 4px 16px rgba(22, 163, 74, .4);
+    -webkit-tap-highlight-color: transparent
+}
+
+.cta-cart:hover {
+    background: #15803d;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 22px rgba(22, 163, 74, .45)
+}
+
+.cta-quote {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, .12);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 800;
+    padding: 12px 22px;
+    border-radius: var(--r8);
+    border: 2px solid rgba(255, 255, 255, .3);
+    cursor: pointer;
+    transition: background .2s, border-color .2s;
+    letter-spacing: .04em;
+    -webkit-tap-highlight-color: transparent
+}
+
+.cta-quote:hover {
+    background: rgba(255, 255, 255, .2);
+    border-color: rgba(255, 255, 255, .5)
+}
+
+@media(max-width:640px) {
+    .hero-actions {
+        gap: 10px;
+        margin-bottom: 12px
+    }
+
+    .qty-box button {
+        width: 34px;
+        height: 40px;
+        font-size: 16px
+    }
+
+    .qty-box input {
+        width: 42px;
+        height: 40px;
+        font-size: 13px
+    }
+
+    .cta-cart {
+        font-size: 12px;
+        padding: 11px 20px;
+        gap: 6px
+    }
+
+    .cta-quote {
+        font-size: 12px;
+        padding: 11px 18px;
+        gap: 6px
+    }
+}
+
+@media(max-width:480px) {
+    .hero-actions {
+        flex-direction: column;
+        width: 100%;
+        gap: 8px
+    }
+
+    .qty-box {
+        width: 100%;
+        justify-content: center
+    }
+
+    .cta-cart,
+    .cta-quote {
+        width: 100%;
+        justify-content: center
+    }
+}
+
+/* HERO LINKS */
+.hero-links {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap
+}
+
+.hero-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, .6);
+    border: 1px solid rgba(255, 255, 255, .15);
+    padding: 6px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background .2s, color .2s, border-color .2s;
+    background: transparent;
+    -webkit-tap-highlight-color: transparent
+}
+
+.hero-link:hover {
+    background: rgba(255, 255, 255, .1);
+    color: #fff;
+    border-color: rgba(255, 255, 255, .3)
+}
+
+.hero-link.wa {
+    color: #4ade80;
+    border-color: rgba(74, 222, 128, .3)
+}
+
+.hero-link.wa:hover {
+    background: rgba(74, 222, 128, .1)
+}
+
+.hero-link svg {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0
+}
+
+@media(max-width:640px) {
+    .hero-links {
+        gap: 6px
+    }
+
+    .hero-link {
+        font-size: 10px;
+        padding: 5px 12px;
+        gap: 5px
+    }
+
+    .hero-link svg {
+        width: 12px;
+        height: 12px
+    }
+}
+
+@media(max-width:480px) {
+    .hero-links {
+        justify-content: center
+    }
+
+    .hero-link {
+        flex: 1;
+        min-width: calc(50% - 3px);
+        justify-content: center
+    }
+}
+
+/* RIGHT IMAGE CARD */
+.hero-right {
+    position: relative;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+}
+
+.hero-img-card {
+    background: #fff;
+    border-radius: var(--r20) var(--r20) 0 0;
+    padding: 24px 24px 0;
+    box-shadow: var(--sh3);
+    position: relative;
+    overflow: hidden;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.hero-img-wrap {
+    position: relative;
+    flex: 1;
+    min-height: 480px;
+    cursor: zoom-in;
+    overflow: hidden;
+    border-radius: var(--r12);
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: center
+}
+
+.hero-img-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 12px;
+    transition: transform .5s cubic-bezier(.25, .46, .45, .94)
+}
+
+.hero-img-wrap:hover img {
+    transform: scale(1.08)
+}
+
+@media(max-width:860px) {
+    .hero-right {
+        margin-top: 20px
+    }
+
+    .hero-img-card {
+        border-radius: var(--r16) var(--r16) 0 0;
+        padding: 20px 20px 0
+    }
+
+    .hero-img-wrap {
+        min-height: 280px
+    }
+}
+
+@media(max-width:640px) {
+    .hero-img-card {
+        padding: 16px 16px 0;
+        border-radius: var(--r12) var(--r12) 0 0
+    }
+
+    .hero-img-wrap {
+        min-height: 240px;
+        border-radius: var(--r8)
+    }
+
+    .hero-img-wrap img {
+        padding: 8px
+    }
+}
+
+@media(max-width:480px) {
+    .hero-img-wrap {
+        min-height: 200px
+    }
+}
+
+.img-badge-tl {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 5
+}
+
+.img-badge-tr {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 5
+}
+
+.b-stock {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--green);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 20px;
+    letter-spacing: .04em
+}
+
+.b-best {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--red);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 20px;
+    letter-spacing: .04em
+}
+
+.hero-ships {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(22, 163, 74, .1);
+    border: 1px solid rgba(22, 163, 74, .25);
+    color: var(--green);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 20px;
+    white-space: nowrap;
+    z-index: 5
+}
+
+@media(max-width:640px) {
+
+    .img-badge-tl,
+    .img-badge-tr {
+        top: 8px
+    }
+
+    .img-badge-tl {
+        left: 8px
+    }
+
+    .img-badge-tr {
+        right: 8px
+    }
+
+    .b-stock,
+    .b-best {
+        font-size: 9px;
+        padding: 3px 8px
+    }
+
+    .hero-ships {
+        font-size: 9px;
+        padding: 3px 10px;
+        top: 8px
+    }
+}
+
+.thumb-strip {
+    display: flex;
+    gap: 8px;
+    padding: 14px 0 20px;
+    overflow-x: auto;
+    scrollbar-width: none
+}
+
+.thumb-strip::-webkit-scrollbar {
+    display: none
+}
+
+.thumb-item {
+    flex-shrink: 0;
+    width: 54px;
+    height: 54px;
+    border: 2px solid var(--border);
+    border-radius: var(--r8);
+    overflow: hidden;
+    background: #f8fafc;
+    cursor: pointer;
+    transition: border-color .2s, box-shadow .2s;
+    -webkit-tap-highlight-color: transparent
+}
+
+.thumb-item:hover {
+    border-color: var(--navy)
+}
+
+.thumb-item.on {
+    border-color: var(--navy);
+    box-shadow: 0 0 0 3px rgba(10, 36, 99, .12)
+}
+
+.thumb-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 4px
+}
+
+@media(max-width:640px) {
+    .thumb-strip {
+        gap: 6px;
+        padding: 12px 0 16px
+    }
+
+    .thumb-item {
+        width: 48px;
+        height: 48px;
+        border-width: 1.5px
+    }
+
+    .thumb-item img {
+        padding: 3px
+    }
+}
+.variant-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.variant-pill-dark {
+    padding: 9px 16px;
+    border: 1.5px solid rgba(255,255,255,.25);
+    border-radius: var(--r8);
+    background: rgba(255,255,255,.06);
+    color: rgba(255,255,255,.75);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .15s;
+    font-family: 'Inter', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.variant-pill-dark:hover {
+    border-color: #fff;
+    color: #fff;
+}
+
+.variant-pill-dark.selected {
+    border-color: var(--navy);
+    background: var(--navy);
+    color: #fff;
+}
+.hero-size-slider-wrap {
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: var(--r8);
+    padding: 10px 14px;
+}
+
+.hero-size-slider {
+    width: 100%;
+    height: 5px;
+    border-radius: 4px;
+    background: rgba(255,255,255,.25);
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+}
+
+.hero-size-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    border: 3px solid var(--navy);
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,.3);
+    transition: transform .15s;
+}
+
+.hero-size-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+}
+
+.hero-size-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    border: 3px solid var(--navy);
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,.3);
+}
+
     </style>
 </head>
 
@@ -3919,109 +5356,45 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
         </div>
     </div>
     <!-- ════ MOBILE ONLY PRODUCT SECTION ════ -->
+    <!-- ════ MOBILE ONLY PRODUCT SECTION (Industrywaala sequence, logic 100% unchanged) ════ -->
     <div class="mob-product-section">
 
-        <!-- 1. IMAGE + PRICE SIDE BY SIDE ROW -->
-        <div style="display:flex;flex-direction:row;align-items:stretch;gap:0;border-bottom:1px solid var(--border);">
+        <!-- 1. SHIPS WITHIN STRIP (full width, top) -->
+        <div class="mob-ships-strip">
+            <span><?= htmlspecialchars($product['ships_within']) ?></span>
+        </div>
 
-            <!-- LEFT: IMAGE -->
-            <div
-                style="position:relative;flex:0 0 60%;max-width:65%;overflow:hidden;background:#f8fafc;border-right:1px solid var(--border);">
-                <!-- In Stock badge -->
-                <div style="position:absolute;top:8px;left:8px;z-index:5;">
-                    <?php if($product['in_stock']): ?>
-                    <span class="b-stock">✓ <?= htmlspecialchars($product['stock_label']) ?></span>
-                    <?php else: ?>
-                    <span class="b-stock" style="background:#dc2626">Out of Stock</span>
-                    <?php endif; ?>
-                </div>
-                <!-- Ships within badge -->
-                <div
-                    style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);z-index:5;white-space:nowrap;">
-                    <span
-                        style="background:rgba(22,163,74,.1);border:1px solid rgba(22,163,74,.25);color:var(--green);font-size:9px;font-weight:700;padding:3px 8px;border-radius:20px;">
-                        <?= htmlspecialchars($product['ships_within']) ?>
-                    </span>
-                </div>
+        <!-- 2. IMAGE (left) + 3 THUMBS (right, stack3ed) -->
+        <div class="mob-img-row">
+            <div class="mob-img-main">
+                <?php if($product['in_stock']): ?>
+
+                <?php else: ?>
+                <span class="b-stock mob-instock-badge" style="background:#dc2626">Out of Stock</span>
+                <?php endif; ?>
                 <img src="<?= htmlspecialchars($images[0]['image_path']) ?>"
-                    alt="<?= htmlspecialchars($product['name']) ?>" id="mob-main-img"
-                    onerror="this.onerror=null;this.src='/assets/images/Gate-Valve-1.png'"
-                    style="display:block;width:100%;height:260px;object-fit:contain;padding:10px;">
+                    alt="<?= htmlspecialchars($product['name']) ?>" id="mob-main-img">
             </div>
-
-            <!-- RIGHT: PRICE BLOCK -->
-            <div
-                style="flex:1;display:flex;flex-direction:column;justify-content:flex-start;padding:8px 8px;gap:3px;position:relative;">
-
-                <!-- MRP + Best Price same row -->
-                <div
-                    style="display:flex;align-items:center;justify-content:space-between;flex-wrap:nowrap;gap:4px;margin:0;">
-                    <p class="mob-mrp" style="margin:0;padding-top:0;flex-shrink:1;min-width:0;">
-                        <?php if($product['price_min'] > 0): ?>MRP <?= formatINR($mrpDisplay) ?><?php endif; ?>
-                    </p>
-                    <?php if($product['best_price']): ?>
-                    <span class="b-best" style="font-size:9px;padding:2px 7px;flex-shrink:0;white-space:nowrap;">Best
-                        Price</span>
-                    <?php endif; ?>
+            <?php if(count($images) > 1): ?>
+            <div class="mob-img-thumbs">
+                <?php foreach(array_slice($images,0,3) as $idx => $img): ?>
+                <div onclick="document.getElementById('mob-main-img').src='<?= htmlspecialchars($img['image_path']) ?>';document.querySelectorAll('.mob-thumb').forEach(t=>t.classList.remove('on'));this.classList.add('on')"
+                    class="thumb-item mob-thumb <?= $idx===0?'on':'' ?>">
+                    <img src="<?= htmlspecialchars($img['image_path']) ?>" alt="">
                 </div>
-                <p style="font-size:11px;color:var(--muted);margin-top:13px;">(Incl. of all taxes)</p>
-
-                <!-- Price -->
-                <div style="margin:0;">
-                    <span class="mob-price"
-                        style="font-size:22px;margin-top:8px;"><?= formatINR($product['price_min']) ?></span>
-                </div>
-
-                <!-- Save + GST inline on same row -->
-                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin:0;">
-                    <?php if($savings > 0): ?>
-                    <span class="mob-save">Save <?= formatINR($savings) ?></span>
-                    <?php endif; ?>
-                    <p class="mob-gst" style="margin:0;">+ <?= $product['gst_percent'] ?>% GST</p>
-                </div>
-
-                <!-- Qty Selector -->
-                <div style="display:flex;flex-direction:column;gap:2px;margin-top:4px;">
-                    <span
-                        style="font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;">Select
-                        Qty</span>
-                    <div class="qty-box"
-                        style="border:2px solid var(--navy);border-radius:var(--r8);overflow:hidden;background:#fff;display:inline-flex;">
-                        <button onclick="decreaseQuantity()"
-                            style="width:26px;height:28px;background:#f8fafc;border:none;color:var(--navy);font-size:14px;font-weight:700;cursor:pointer;">−</button>
-                        <input type="number" id="quantity" value="1" min="1" readonly
-                            style="width:28px;height:28px;text-align:center;font-size:11px;font-weight:800;color:var(--navy);border:none;border-left:2px solid var(--navy);border-right:2px solid var(--navy);outline:none;background:#fff;font-family:'Sora',sans-serif;">
-                        <button onclick="increaseQuantity()"
-                            style="width:26px;height:28px;background:#f8fafc;border:none;color:var(--navy);font-size:14px;font-weight:700;cursor:pointer;">+</button>
-                    </div>
-                    <span style="font-size:9px;color:var(--faint);">Min: <?= $product['min_order'] ?></span>
-                </div>
-
+                <?php endforeach; ?>
             </div>
+            <?php endif; ?>
         </div>
 
-        <!-- THUMB STRIP -->
-        <?php if(count($images) > 1): ?>
-        <div
-            style="display:flex;gap:8px;padding:10px 16px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--border);">
-            <?php foreach($images as $idx => $img): ?>
-            <div onclick="document.getElementById('mob-main-img').src='<?= htmlspecialchars($img['image_path']) ?>';document.querySelectorAll('.mob-thumb').forEach(t=>t.classList.remove('on'));this.classList.add('on')"
-                class="thumb-item mob-thumb <?= $idx===0?'on':'' ?>" style="flex-shrink:0;">
-                <img src="<?= htmlspecialchars($img['image_path']) ?>" alt="">
-            </div>
-            <?php endforeach; ?>
-        </div>
-        <?php endif; ?>
-
-        <!-- 2. PRODUCT NAME -->
+        <!-- 3. PRODUCT NAME -->
         <h1 class="mob-title"><?= htmlspecialchars($product['name']) ?></h1>
 
-        <!-- 3. SHORT DESC -->
         <?php if(!empty($product['subtitle'])): ?>
         <p class="mob-desc"><?= htmlspecialchars($product['subtitle']) ?></p>
         <?php endif; ?>
 
-        <!-- 4. RATING + STOCK -->
+        <!-- 4. RATING + STOCK ROW -->
         <div class="mob-rating">
             <div class="stars">
                 <?php $r=floatval($product['rating']); for($st=1;$st<=5;$st++): ?>
@@ -4040,8 +5413,41 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
             <?php endif; ?>
         </div>
 
-        <!-- 5. PCARD LINKS ROW -->
-        <div class="pcard-links" style="display:flex;flex-direction:row;gap:8px;">
+        <!-- 5. PRICE — single line -->
+        <div class="mob-price-block">
+            <div class="mob-price-row">
+                <span class="mob-price"><?= formatINR($product['price_min']) ?></span>
+                <span class="mob-mrp" style="margin:0;"><?= formatINR($mrpDisplay) ?></span>
+                <?php if($savings > 0): ?>
+                <span class="mob-save">Save <?= formatINR($savings) ?></span>
+                <?php endif; ?>
+                <?php if($product['best_price']): ?>
+                <span class="b-best" style="font-size:9px;">Best Price ✓</span>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- 6. QTY (same #quantity id, same onclick — JS untouched) + GST pill, same row -->
+        <div class="mob-qty-gst-row">
+            <div class="qty-box"
+                style="border:2px solid var(--navy);border-radius:var(--r8);overflow:hidden;background:#fff;display:inline-flex;">
+                <button onclick="decreaseQuantity()"
+                    style="width:30px;height:34px;background:#f8fafc;border:none;color:var(--navy);font-size:16px;font-weight:700;cursor:pointer;">−</button>
+                <input type="number" id="quantity" value="1" min="1" readonly
+                    style="width:34px;height:34px;text-align:center;font-size:13px;font-weight:800;color:var(--navy);border:none;border-left:2px solid var(--navy);border-right:2px solid var(--navy);outline:none;background:#fff;font-family:'Sora',sans-serif;">
+                <button onclick="increaseQuantity()"
+                    style="width:30px;height:34px;background:#f8fafc;border:none;color:var(--navy);font-size:16px;font-weight:700;cursor:pointer;">+</button>
+            </div>
+            <span class="mob-gst-pill">+ <?= $product['gst_percent'] ?>% GST applicable</span>
+        </div>
+        <p class="mob-min-order-txt">Min: <?= $product['min_order'] ?>
+            <?= htmlspecialchars($product['min_order_unit']) ?></p>
+
+        <!-- 7. VARIANTS — Size / Disc MOC / Pressure Rating (STATIC for now — no DB data wired yet, per your instruction) -->
+<?php renderVariants($variantGroups, 'mobile'); ?>
+
+        <!-- 8. PCARD LINKS ROW (Call / WhatsApp / Bulk Quote) — same onclick handlers as before -->
+        <div class="pcard-links" style="display:flex;flex-direction:row;gap:8px;padding:14px 16px 0;">
             <a href="tel:+918468851160" class="pcard-link"
                 style="flex:1;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:4px;padding:10px 6px;">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -4069,7 +5475,8 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
                 <span style="font-size:10px;font-weight:800;">Bulk Quote</span>
             </button>
         </div>
-        <!-- 5.5 DELIVERY INFO TILES — MOBILE ONLY -->
+
+        <!-- 9. DELIVERY INFO TILES -->
         <div class="mob-dbar">
             <div class="mob-dbar-inner">
                 <div class="mob-dbar-tile">
@@ -4125,7 +5532,9 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
         </div>
 
 
+
     </div><!-- END mob-product-section -->
+    <!-- END mob-product-section -->
     <!-- ════════════════════════ HERO BAND ════════════════════════ -->
     <div class="hero-band">
         <div class="hero-inner">
@@ -4150,7 +5559,7 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
                             <?php endif; ?>
                         </div>
                         <?php if($product['best_price']): ?>
-                        <div class="img-badge-tr"><span class="b-best">Best Price</span></div>
+                        <div class="img-badge-tr"><span class="b-best">Best Price ✓</span></div>
                         <?php endif; ?>
                         <div class="hero-ships"><?= htmlspecialchars($product['ships_within']) ?></div>
                     </div>
@@ -4200,112 +5609,101 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
                 </div>
             </div>
             <!-- LEFT: Info + Price + Actions -->
-            <div class="hero-left au">
-                <span class="hero-cat">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:11px;height:11px">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                    </svg>
-                    <?= htmlspecialchars($product['category']) ?>
-                </span>
+          <div class="hero-left au">
+   
+    <!-- 2. PRODUCT NAME -->
+    <h1 class="hero-title" style="font-family:'Inter',sans-serif;font-size:30px;font-weight:900;margin-top:10px;">
+        <?= htmlspecialchars($product['name']) ?>
+    </h1>
+    <?php if(!empty($product['subtitle'])): ?>
+    <p class="hero-sub" style="font-family:'Inter',sans-serif;"><?= htmlspecialchars($product['subtitle']) ?></p>
+    <?php endif; ?>
 
-                <h1 class="hero-title"><?= htmlspecialchars($product['name']) ?></h1>
-                <?php if(!empty($product['subtitle'])): ?>
-                <p class="hero-sub"><?= htmlspecialchars($product['subtitle']) ?></p>
-                <?php endif; ?>
+    <!-- 3. RATING + ORDERS + IN STOCK -->
+    <div class="hero-rating" style="font-family:'Inter',sans-serif;">
+        <div class="stars">
+            <?php $r=floatval($product['rating']); for($st=1;$st<=5;$st++): ?>
+            <svg fill="currentColor" viewBox="0 0 20 20"
+                style="color:<?= $st<=$r?'#fbbf24':'rgba(255,255,255,.2)' ?>">
+                <path
+                    d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+            <?php endfor; ?>
+        </div>
+        <span class="r-text"><?= $product['rating'] ?>/5.0</span>
+        <span class="r-div">|</span>
+        <span class="r-text"><?= htmlspecialchars($product['orders_count']) ?> Orders</span>
+        <?php if($product['in_stock']): ?>
+        <span class="stock-pill">
+            <svg fill="currentColor" viewBox="0 0 20 20" style="width:10px;height:10px">
+                <path fill-rule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clip-rule="evenodd" />
+            </svg>
+            <?= htmlspecialchars($product['stock_label']) ?>
+        </span>
+        <?php endif; ?>
+    </div>
 
-                <!-- Rating -->
-                <div class="hero-rating">
-                    <div class="stars">
-                        <?php $r=floatval($product['rating']); for($st=1;$st<=5;$st++): ?>
-                        <svg fill="currentColor" viewBox="0 0 20 20"
-                            style="color:<?= $st<=$r?'#fbbf24':'rgba(255,255,255,.2)' ?>">
-                            <path
-                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
-                        <?php endfor; ?>
-                    </div>
-                    <span class="r-text"><?= $product['rating'] ?>/5.0</span>
-                    <span class="r-div">|</span>
-                    <span class="r-text"><?= htmlspecialchars($product['orders_count']) ?> Orders</span>
-                    <?php if($product['in_stock']): ?>
-                    <span class="stock-pill">
-                        <svg fill="currentColor" viewBox="0 0 20 20" style="width:10px;height:10px">
-                            <path fill-rule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                clip-rule="evenodd" />
-                        </svg>
-                        <?= htmlspecialchars($product['stock_label']) ?>
-                    </span>
-                    <?php endif; ?>
-                </div>
+    <!-- 4. PRICE + MRP + GST, single line -->
+    <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:16px;font-family:'Inter',sans-serif;">
+        <span id="product-total-price" style="font-family:'Inter',sans-serif;font-weight:800;font-size:32px;color:#fff;"><?= formatINR($product['price_min']) ?></span>
+        <span style="font-size:14px;color:rgba(255,255,255,.45);text-decoration:line-through;"><?= formatINR($mrpDisplay) ?></span>
+        <?php if($savings > 0): ?>
+        <span class="hero-save">
+            <svg fill="currentColor" viewBox="0 0 20 20" style="width:12px;height:12px">
+                <path fill-rule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clip-rule="evenodd" />
+            </svg>
+            <?= round((($mrpDisplay - $product['price_min']) / $mrpDisplay) * 100) ?>% OFF
+        </span>
+        <?php endif; ?>
+        <span style="font-family:'Inter',sans-serif;font-size:11px;border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:4px 12px;color:rgba(255,255,255,.7);">
+            + <?= $product['gst_percent'] ?>% GST applicable
+        </span>
+    </div>
 
-                <!-- Price -->
-                <div class="hero-price-block">
-                    <?php if($product['price_min'] > 0): ?>
-                    <p class="hero-mrp">MRP <?= formatINR($mrpDisplay) ?> (Incl. of all taxes)</p>
-                    <?php endif; ?>
-                    <div class="hero-price-row">
-                        <span id="product-total-price"
-                            class="hero-price"><?= $product['price_min'] > 0 ? formatINR($product['price_min']) : '' ?></span>
-                        <span class="hero-price-calc">(<span
-                                id="unit-price-display"><?= formatINR($product['price_min']) ?></span> × <span
-                                id="current-quantity">1</span> pcs)</span>
-                    </div>
-                    <p class="hero-gst">+ <?= $product['gst_percent'] ?>% GST applicable</p>
-                    <?php if($savings > 0): ?>
-                    <span class="hero-save">
-                        <svg fill="currentColor" viewBox="0 0 20 20" style="width:12px;height:12px">
-                            <path fill-rule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                clip-rule="evenodd" />
-                        </svg>
-                        You save <?= formatINR($savings) ?>
-                    </span>
-                    <?php endif; ?>
-                </div>
+    <!-- 5. QTY + ADD TO CART + REQUEST QUOTE -->
+    <div class="hero-actions">
+        <div class="qty-box">
+            <button onclick="decreaseQuantity()">−</button>
+            <input type="number" id="qty-hero" value="1" min="1" readonly>
+            <button onclick="increaseQuantity()">+</button>
+        </div>
+        <button onclick="addToCart()" class="cta-cart" style="font-family:'Inter',sans-serif;">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:16px;height:16px">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            ADD TO CART
+        </button>
+        <button onclick="openQuoteModal()" class="cta-quote" style="font-family:'Inter',sans-serif;">REQUEST QUOTE</button>
+    </div>
+    <p style="font-size:11px;color:rgba(255,255,255,.4);margin-bottom:20px;font-family:'Inter',sans-serif;">
+        Min. Order: <?= $product['min_order'] ?> <?= htmlspecialchars($product['min_order_unit']) ?>
+    </p>
 
-                <!-- QTY + CTA -->
-                <div class="hero-actions">
-                    <div class="qty-box">
-                        <button onclick="decreaseQuantity()">−</button>
-                        <input type="number" id="qty-hero" value="1" min="1" readonly>
-                        <button onclick="increaseQuantity()">+</button>
-                    </div>
-                    <button onclick="addToCart()" class="cta-cart">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:16px;height:16px">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                        ADD TO CART
-                    </button>
-                    <button onclick="openQuoteModal()" class="cta-quote">REQUEST QUOTE</button>
-                </div>
+<?php renderVariants($variantGroups, 'desktop'); ?>
 
-                <!-- Min order text -->
-                <p style="font-size:11px;color:rgba(255,255,255,.4);margin-bottom:14px">
-                    Min. Order: <?= $product['min_order'] ?> <?= htmlspecialchars($product['min_order_unit']) ?>
-                </p>
-
-                <!-- Secondary links -->
-                <div class="hero-links">
-                    <button class="hero-link">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                        </svg>
-                        +91 84688-51160
-                    </button>
-                    <button onclick="buyOnChat()" class="hero-link wa">
-                        <svg fill="currentColor" viewBox="0 0 24 24">
-                            <path
-                                d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                        </svg>
-                        Buy on WhatsApp
-                    </button>
-
-                </div>
-            </div>
+    <!-- Secondary links -->
+    <div class="hero-links">
+        <button class="hero-link" style="font-family:'Inter',sans-serif;">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+            </svg>
+            +91 84688-51160
+        </button>
+        <button onclick="buyOnChat()" class="hero-link wa" style="font-family:'Inter',sans-serif;">
+            <svg fill="currentColor" viewBox="0 0 24 24">
+                <path
+                    d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+            </svg>
+            Buy on WhatsApp
+        </button>
+    </div>
+</div>
 
 
 
@@ -4510,15 +5908,11 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
                     <?php foreach($related as $rel): ?>
                     <div class="r-card" onclick="window.location.href='cart.php?slug=<?= urlencode($rel['slug']) ?>'">
                         <img src="<?= htmlspecialchars($rel['image']) ?>" alt="<?= htmlspecialchars($rel['name']) ?>"
-                            class="r-card-img" onerror="this.src='assets/images/Gate-Valve-1.png'">
+                            class="r-card-img" onerror="this.style.background='#f1f5f9'">
                         <div class="r-card-body">
                             <div class="r-card-name"><?= htmlspecialchars($rel['name']) ?></div>
                             <div class="r-card-price">
-                                <?php if($rel['price_min'] > 0): ?>
                                 ₹<?= number_format($rel['price_min'],0,'.',',') ?><?= $rel['price_max']>0?' – ₹'.number_format($rel['price_max'],0,'.',','):'' ?>
-                                <?php else: ?>
-
-                                <?php endif; ?>
                             </div>
                             <button class="r-card-btn">View Details</button>
                         </div>
@@ -4568,6 +5962,7 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
                 <p class="desc-card-text"><?= htmlspecialchars($product['description']) ?></p>
             </div>
             <?php endif; ?>
+<!-- HELP / CTA CARD -->
 
         </div><!-- /right-col -->
 
@@ -4749,28 +6144,30 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
         return p.toLocaleString('en-IN');
     }
 
-    function updateTotalPrice() {
-        const qty = parseInt(document.getElementById('quantity').value);
-        const priceEl = document.getElementById('product-total-price');
-        const calcEl = document.querySelector('.hero-price-calc');
+function updateTotalPrice() {
+    const qtyEl = document.getElementById('quantity');
+    const qty = parseInt(qtyEl ? qtyEl.value : 1) || 1;
 
-        if (unitPriceValue > 0) {
-            priceEl.textContent = '₹' + formatPrice(unitPriceValue * qty);
-            if (calcEl) calcEl.style.display = '';
-            document.getElementById('current-quantity').textContent = qty;
-            document.getElementById('unit-price-display').textContent = '₹' + formatPrice(unitPriceValue);
-        } else {
-            priceEl.textContent = '';
-            if (calcEl) calcEl.style.display = 'none';
-        }
+    const totalPriceEl = document.getElementById('product-total-price');
+    if (totalPriceEl) totalPriceEl.textContent = '₹' + formatPrice(unitPriceValue * qty);
 
-        const sd = document.getElementById('sideQtyDisplay');
-        if (sd) sd.value = qty;
-        const sp = document.getElementById('side-price');
-        if (sp) sp.textContent = unitPriceValue > 0 ? '₹' + formatPrice(unitPriceValue * qty) : '';
-        const mobPrice = document.querySelector('.mob-price');
-        if (mobPrice) mobPrice.textContent = unitPriceValue > 0 ? '₹' + formatPrice(unitPriceValue * qty) : '';
-    }
+    const curQtyEl = document.getElementById('current-quantity');
+    if (curQtyEl) curQtyEl.textContent = qty;
+
+    const unitPriceEl = document.getElementById('unit-price-display');
+    if (unitPriceEl) unitPriceEl.textContent = '₹' + formatPrice(unitPriceValue);
+
+    const sd = document.getElementById('sideQtyDisplay');
+    if (sd) sd.value = qty;
+    const sp = document.getElementById('side-price');
+    if (sp) sp.textContent = '₹' + formatPrice(unitPriceValue * qty);
+    // mob-quantity sync
+    const mq = document.getElementById('mob-quantity');
+    if (mq) mq.value = qty;
+    // mob price sync
+    const mobPrice = document.querySelector('.mob-price');
+    if (mobPrice) mobPrice.textContent = '₹' + formatPrice(unitPriceValue * qty);
+}
 
     function increaseQuantity() {
         const mob = document.getElementById('quantity');
@@ -4779,7 +6176,6 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
         if (hero) hero.value = mob.value;
         updateTotalPrice();
     }
-
 
     function decreaseQuantity() {
         const mob = document.getElementById('quantity');
@@ -4812,11 +6208,6 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
         saveCartToStorage();
         updateCartCount();
         showSuccessNotif();
-    }
-    if (unitPriceValue > 0) {
-        document.getElementById('product-total-price').textContent = '₹' + formatPrice(unitPriceValue * qty);
-    } else {
-        document.getElementById('product-total-price').textContent = '';
     }
 
     function showSuccessNotif() {
@@ -4857,7 +6248,7 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
         summary.style.display = 'block';
         container.innerHTML = cart.map((item, i) => `
         <div class="citem">
-            <img src="${item.image||''}" alt="${item.name}" class="citem-img" onerror="this.src='assets/images/Gate-Valve-1.png'">
+            <img src="${item.image||''}" alt="${item.name}" class="citem-img" onerror="this.style.display='none'">
             <div style="flex:1;min-width:0">
                 <div class="citem-name">${item.name}</div>
                 <div class="citem-sub">${item.subtitle||''}</div>
@@ -5029,6 +6420,20 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
         }
         setTimeout(loadCartFromStorage, 200);
     });
+// NAYA (daal):
+function selectVariantDesktop(slug, value, btnEl) {
+    document.querySelectorAll('.' + slug + ' .variant-pill-dark')
+        .forEach(b => b.classList.remove('selected'));
+    btnEl.classList.add('selected');
+    document.querySelectorAll('.' + slug + '-label')
+        .forEach(lbl => lbl.textContent = value);
+}
+
+function updateMobLabel(slug, value) {
+    document.querySelectorAll('.' + slug + '-mob-label')
+        .forEach(lbl => lbl.textContent = value);
+}
+
     </script>
 
     <?php include 'assets/include/footer.php'; ?>
