@@ -32,7 +32,14 @@ $features = [];
 $f = $conn->prepare("SELECT feature FROM product_features WHERE product_id = ? ORDER BY sort_order");
 $f->bind_param("i", $pid); $f->execute(); $fResult = $f->get_result();
 while ($row = $fResult->fetch_assoc()) $features[] = $row['feature'];
-
+// ── GET BRAND FOR THIS PRODUCT ──────────────────────────
+$brandInfo = null;
+if (!empty($product['brand_id'])) {
+    $br = $conn->prepare("SELECT id, name, slug, logo FROM brands WHERE id = ? AND is_active = 1 LIMIT 1");
+    $br->bind_param("i", $product['brand_id']);
+    $br->execute();
+    $brandInfo = $br->get_result()->fetch_assoc();
+}
 $applications = [];
 $a = $conn->prepare("SELECT application FROM product_applications WHERE product_id = ? ORDER BY sort_order");
 $a->bind_param("i", $pid); $a->execute(); $aResult = $a->get_result();
@@ -70,62 +77,26 @@ $variantGroupsJSON = json_encode(
 );
 function renderVariants(array $groups, string $ctx): void {
     foreach ($groups as $grp) {
-        $gid  = (int)$grp['id'];
         $name = htmlspecialchars($grp['group_name']);
         $opts = $grp['options'];
-        $slug = 'vg-' . $gid . '-' . $ctx;
 
-        // default label
-        $defLabel = '';
-        foreach ($opts as $o) {
-            if ($o['is_default']) { $defLabel = htmlspecialchars($o['option_label']); break; }
-        }
-        if (!$defLabel && !empty($opts)) $defLabel = htmlspecialchars($opts[0]['option_label']);
+        if (empty($opts)) continue;
 
-        // Size group = only 2 options = min/max range display
-$isRange = (strtolower($name) === 'size');
+        // Always render as a range: First Option – Last Option
+        $first = htmlspecialchars($opts[0]['option_label']);
+        $last  = htmlspecialchars($opts[count($opts) - 1]['option_label']);
+
         if ($ctx === 'desktop') {
             echo '<div style="margin-bottom:16px;">';
-            if ($isRange) {
-                $min = htmlspecialchars($opts[0]['option_label']);
-                $max = htmlspecialchars($opts[1]['option_label']);
-                echo '<div style="font-size:13px;font-weight:800;color:#fff;font-family:Inter,sans-serif;">';
-                echo $name . ': <span style="font-weight:600;color:rgba(255,255,255,.7);">' . $min . ' – ' . $max . '</span>';
-                echo '</div>';
-            } else {
-                echo '<div style="font-size:13px;font-weight:800;color:#fff;margin-bottom:8px;font-family:Inter,sans-serif;">';
-                echo $name . ': <span class="' . $slug . '-label" style="font-weight:600;color:rgba(255,255,255,.7);">' . $defLabel . '</span>';
-                echo '</div>';
-                echo '<div class="variant-pills ' . $slug . '">';
-                foreach ($opts as $o) {
-                    $val = htmlspecialchars($o['option_label']);
-                    $sel = $o['is_default'] ? ' selected' : '';
-                    echo '<button class="variant-pill-dark' . $sel . '" ';
-                    echo 'onclick="selectVariantDesktop(\'' . $slug . '\',\'' . addslashes($val) . '\',this)">';
-                    echo $val . '</button>';
-                }
-                echo '</div>';
-            }
+            echo '<div style="font-size:13px;font-weight:800;color:#fff;font-family:Inter,sans-serif;">';
+            echo $name . ': <span style="font-weight:600;color:rgba(255,255,255,.7);">' . $first . ' – ' . $last . '</span>';
+            echo '</div>';
             echo '</div>';
 
         } else { // mobile
             echo '<div class="mob-variant-block">';
-            if ($isRange) {
-                $min = htmlspecialchars($opts[0]['option_label']);
-                $max = htmlspecialchars($opts[1]['option_label']);
-                echo '<div class="mob-variant-lbl">' . $name . ': ';
-                echo '<span class="mob-variant-selected">' . $min . ' – ' . $max . '</span></div>';
-            } else {
-                echo '<div class="mob-variant-lbl">' . $name . ': ';
-                echo '<span class="mob-variant-selected ' . $slug . '-mob-label">' . $defLabel . '</span></div>';
-                echo '<select class="mob-variant-select" onchange="updateMobLabel(\'' . $slug . '\',this.value)">';
-                foreach ($opts as $o) {
-                    $val = htmlspecialchars($o['option_label']);
-                    $sel = $o['is_default'] ? ' selected' : '';
-                    echo '<option' . $sel . '>' . $val . '</option>';
-                }
-                echo '</select>';
-            }
+            echo '<div class="mob-variant-lbl">' . $name . ': ';
+            echo '<span class="mob-variant-selected">' . $first . ' – ' . $last . '</span></div>';
             echo '</div>';
         }
     }
@@ -199,6 +170,7 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
         display: none !important;
     }
 
+
     /* ═══════════════════════════════════════════════════════════════
    COMPLETE FIXED CSS — product page (cart.php)
    Fixes:
@@ -219,6 +191,160 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
         font-family: 'Sora', sans-serif;
         background: #f0f2f7;
         color: #1a1e2e
+    }
+/* ── HERO EQUAL HEIGHT FIX ── */
+.hero-inner {
+    align-items: stretch !important;
+}
+
+.hero-left {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+/* ── IMAGE SIZE LIMIT FIX ── */
+@media(min-width:861px) {
+    .hero-img-wrap {
+        min-height: 320px !important;
+        max-height: 420px !important;
+    }
+   
+}
+
+
+.hero-img-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border-radius: 20px 20px 0 0;
+}
+
+.hero-img-wrap {
+    flex: 1;
+    min-height: 300px;
+}
+    /* ════════════════════════════════
+   REVIEW SEARCH + SORT BAR (NAYA)
+════════════════════════════════ */
+    .rev-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--border);
+        background: #fff;
+        flex-wrap: wrap;
+    }
+
+    .rev-search-wrap {
+        flex: 1;
+        min-width: 200px;
+        position: relative;
+    }
+
+    .rev-search-wrap svg {
+        position: absolute;
+        left: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 16px;
+        height: 16px;
+        color: var(--faint);
+        pointer-events: none;
+    }
+
+    .rev-search-input {
+        width: 100%;
+        border: 1.5px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 14px 10px 38px;
+        font-size: 13px;
+        font-family: 'Sora', sans-serif;
+        color: var(--text);
+        outline: none;
+        background: #f8fafc;
+        transition: border-color .2s, background .2s;
+    }
+
+    .rev-search-input:focus {
+        border-color: #0a2463;
+        background: #fff;
+    }
+
+    .rev-sort-wrap {
+        flex-shrink: 0;
+    }
+
+    .rev-sort-select {
+        border: 1.5px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 32px 10px 14px;
+        font-size: 13px;
+        font-weight: 700;
+        font-family: 'Sora', sans-serif;
+        color: var(--text);
+        background-color: #f8fafc;
+        appearance: none;
+        -webkit-appearance: none;
+        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3e%3cpath d='M6 9l6 6 6-6'/%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 10px center;
+        background-size: 14px;
+        cursor: pointer;
+        outline: none;
+    }
+
+    .rev-sort-select:focus {
+        border-color: #0a2463;
+    }
+
+    @media(max-width:640px) {
+        .rev-toolbar {
+            padding: 12px 16px;
+            gap: 8px;
+        }
+
+        .rev-search-input,
+        .rev-sort-select {
+            font-size: 12px;
+            padding: 9px 12px 9px 34px;
+        }
+
+        .rev-sort-select {
+            padding: 9px 28px 9px 12px;
+        }
+    }
+
+    /* ── AVATAR PHOTO OVERRIDE ── */
+    .rev-avatar {
+        overflow: hidden;
+    }
+
+    .rev-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
+    }
+
+    @media(min-width:861px) {
+        .page-body {
+            grid-template-columns: 1fr 300px;
+            max-width: 1320px;
+            margin: 0 auto;
+            padding-left: 28px;
+            padding-right: 28px;
+            width: auto;
+        }
+
+        .left-col,
+        .review-block,
+        #reviewSection {
+            width: 100%;
+            max-width: 100%;
+            margin-left: 0;
+            margin-right: 0;
+        }
     }
 
     :root {
@@ -1647,8 +1773,8 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
 
     .desc-title {
         font-family: 'Sora', sans-serif;
-        font-size: 20px;
-        font-weight: 500;
+        font-size: 16px;
+        font-weight: 700;
         color: var(--text);
         margin-bottom: 12px;
         padding-bottom: 12px;
@@ -1864,7 +1990,7 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
     }
 
     .r-card-name {
-        font-size: 12px;
+        font-size: 13px;
         font-weight: 800;
         color: var(--navy);
         line-height: 1.4;
@@ -1924,8 +2050,7 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
         }
 
         .r-card-price {
-            font-size: 14px
-            font-weight: 600;
+            font-size: 14px font-weight: 600;
         }
     }
 
@@ -1959,7 +2084,7 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
 
         .r-card-price {
             font-size: 13px;
-            font-weight:600;
+            font-weight: 600;
             margin-bottom: 6px
         }
 
@@ -2055,8 +2180,7 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
         }
 
         .pcard-price {
-            font-size: 28px
-            font-weight: 600;
+            font-size: 28px font-weight: 600;
         }
     }
 
@@ -2070,8 +2194,7 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
         }
 
         .pcard-price {
-            font-size: 24px
-            font-weight:  600;
+            font-size: 24px font-weight: 600;
         }
 
         .pcard-gst {
@@ -2377,11 +2500,11 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
     }
 
     .tn-title {
-        font-size: 10px;
+        font-size: 12px;
         font-weight: 800;
         text-transform: uppercase;
-        letter-spacing: .08em;
-        color: var(--muted);
+        letter-spacing: .07em;
+        color: #1A1E2E;
         margin-bottom: 12px
     }
 
@@ -2416,8 +2539,9 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
     .tn-val {
         font-family: 'Sora', sans-serif;
         font-size: 20px;
+        font-weight: 800;
         line-height: 1;
-        margin-bottom: 3px
+        margin-bottom: 3px;
     }
 
     .tn-item.g .tn-val {
@@ -2445,7 +2569,7 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
         }
 
         .tn-title {
-            font-size: 9px;
+            font-size: 12px;
             margin-bottom: 10px
         }
 
@@ -2476,20 +2600,21 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
     }
 
     .desc-card-title {
-        font-size: 11px;
+
+        font-size: 13px;
         font-weight: 800;
         text-transform: uppercase;
-        letter-spacing: .08em;
-        color: var(--muted);
+        letter-spacing: .07em;
+        color: #232736;
         margin-bottom: 10px;
         display: flex;
         align-items: center;
-        gap: 7px
+        gap: 7px;
     }
 
     .desc-card-title svg {
-        width: 13px;
-        height: 13px;
+        width: 20px;
+        height: 20px;
         color: var(--navy)
     }
 
@@ -2548,7 +2673,8 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
         font-size: 9px;
         font-weight: 700;
         color: var(--muted);
-        line-height: 1.3
+        line-height: 1.3;
+        text-align: center;
     }
 
     @media(max-width:640px) {
@@ -2799,6 +2925,10 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
         padding: 2px 8px;
         font-size: 11px;
         font-weight: 900
+    }
+
+    p {
+        text-align: justify;
     }
 
     @media(max-width:640px) {
@@ -3485,6 +3615,34 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
         padding: 16px
     }
 
+    @media(max-width:860px) {
+        .mob-about {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--r12);
+            margin: 12px 12px 0;
+            padding: 14px 16px;
+            box-shadow: var(--sh1);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .mob-about-title {
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: .07em;
+            color: var(--navy);
+            margin-bottom: 8px;
+        }
+
+        .mob-about-text {
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.75;
+            text-align: left !important;
+        }
+    }
+
     #miniDetailModal.open {
         display: flex
     }
@@ -3790,11 +3948,11 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
     }
 
     .mob-about-title {
-        font-size: 10px;
+        font-size: 13px;
         font-weight: 800;
         text-transform: uppercase;
-        letter-spacing: .08em;
-        color: var(--muted);
+        letter-spacing: .07em;
+        color: #1A1E2E;
         margin-bottom: 8px;
         display: flex;
         align-items: center;
@@ -3803,7 +3961,7 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
 
     .mob-about-text {
         font-size: 12px;
-        color: var(--muted);
+        color: #1A1E2E;
         line-height: 1.75;
     }
 
@@ -3990,7 +4148,20 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
         }
     }
     </style>
+
     <style>
+    @media(min-width:861px) {
+        .page-body {
+            grid-template-columns: 1fr 280px;
+            /* right sidebar chhota, left (review) bada */
+            gap: 20px;
+        }
+
+        .right-col {
+            width: 280px;
+        }
+    }
+
     @media(max-width:860px) {
 
         .mob-ships-strip {
@@ -4306,802 +4477,1459 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
         color: var(--muted);
         margin-top: 4px;
     }
+
     /* ═══════════════════════════════════
    HERO BAND
 ═══════════════════════════════════ */
-.hero-band {
-    background: linear-gradient(135deg, #0a2463 0%, #0d2d7a 60%, #1a3a9a 100%);
-    padding: 36px 0 0
-}
-
-.hero-inner {
-    max-width: 1320px;
-    margin: 0 auto;
-    padding: 0 28px;
-    display: grid;
-    grid-template-columns: 480px 1fr;
-    gap: 40px;
-    align-items: stretch
-}
-
-@media(max-width:1100px) {
-    .hero-inner {
-        grid-template-columns: 1fr 360px;
-        gap: 28px
-    }
-}
-
-@media(max-width:860px) {
     .hero-band {
-        padding: 24px 0 0
+        background: linear-gradient(135deg, #0a2463 0%, #0d2d7a 60%, #1a3a9a 100%);
+        padding: 36px 0 0
     }
 
     .hero-inner {
-        grid-template-columns: 1fr;
-        gap: 0;
-        padding: 0 20px
-    }
-}
-
-@media(max-width:640px) {
-    .hero-band {
-        padding: 20px 0 0
+        max-width: 1320px;
+        margin: 0 auto;
+        padding: 0 28px;
+        display: grid;
+        grid-template-columns: 480px 1fr;
+        gap: 40px;
+        align-items: stretch
     }
 
-    .hero-inner {
-        padding: 0 16px
+    @media(max-width:1100px) {
+        .hero-inner {
+            grid-template-columns: 1fr 360px;
+            gap: 28px
+        }
     }
-}
 
-/* LEFT */
-.hero-left {
-    padding-bottom: 32px
-}
+    @media(max-width:860px) {
+        .hero-band {
+            padding: 24px 0 0
+        }
 
-.hero-cat {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: rgba(255, 255, 255, .12);
-    border: 1px solid rgba(255, 255, 255, .2);
-    color: rgba(255, 255, 255, .85);
-    font-size: 10px;
-    font-weight: 800;
-    padding: 4px 14px;
-    border-radius: 20px;
-    text-transform: uppercase;
-    letter-spacing: .1em;
-    margin-bottom: 16px
-}
+        .hero-inner {
+            grid-template-columns: 1fr;
+            gap: 0;
+            padding: 0 20px
+        }
+    }
 
-.hero-title {
-    font-family: 'Sora', sans-serif;
-    font-size: 30px;
-    font-weight: 800;
-    color: #fff;
-    line-height: 1.25;
-    margin-bottom: 8px
-}
+    @media(max-width:640px) {
+        .hero-band {
+            padding: 20px 0 0
+        }
 
-.hero-sub {
-    font-size: 13px;
-    color: rgba(255, 255, 255, .6);
-    font-weight: 400;
-    margin-bottom: 18px;
-    line-height: 1.6
-}
+        .hero-inner {
+            padding: 0 16px
+        }
+    }
 
-@media(max-width:680px) {
+    /* LEFT */
     .hero-left {
-        padding-bottom: 20px
+        padding-bottom: 32px
     }
 
     .hero-cat {
-        font-size: 9px;
-        padding: 3px 12px;
-        gap: 4px;
-        margin-bottom: 12px
-    }
-
-    .hero-title {
-        font-size: 22px;
-        margin-bottom: 6px
-    }
-
-    .hero-sub {
-        font-size: 12px;
-        margin-bottom: 14px
-    }
-}
-
-@media(max-width:480px) {
-    .hero-title {
-        font-size: 20px;
-        line-height: 1.3
-    }
-
-    .hero-sub {
-        font-size: 11px
-    }
-}
-
-.hero-rating {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 20px
-}
-
-.stars {
-    display: flex;
-    gap: 2px
-}
-
-.stars svg {
-    width: 14px;
-    height: 14px
-}
-
-.r-text {
-    font-size: 12px;
-    color: rgba(255, 255, 255, .65);
-    font-weight: 600
-}
-
-.r-div {
-    color: rgba(255, 255, 255, .2)
-}
-
-.stock-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background: rgba(22, 163, 74, .2);
-    border: 1px solid rgba(22, 163, 74, .4);
-    color: #4ade80;
-    font-size: 10px;
-    font-weight: 800;
-    padding: 3px 10px;
-    border-radius: 20px;
-    letter-spacing: .04em
-}
-
-@media(max-width:640px) {
-    .hero-rating {
-        gap: 8px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(255, 255, 255, .12);
+        border: 1px solid rgba(255, 255, 255, .2);
+        color: rgba(255, 255, 255, .85);
+        font-size: 10px;
+        font-weight: 800;
+        padding: 4px 14px;
+        border-radius: 20px;
+        text-transform: uppercase;
+        letter-spacing: .1em;
         margin-bottom: 16px
     }
 
-    .stars svg {
-        width: 13px;
-        height: 13px
-    }
-
-    .r-text {
-        font-size: 11px
-    }
-
-    .stock-pill {
-        font-size: 9px;
-        padding: 2px 8px
-    }
-}
-
-/* PRICE BLOCK */
-.hero-price-block {
-    background: rgba(255, 255, 255, .08);
-    border: 1px solid rgba(255, 255, 255, .15);
-    border-radius: var(--r16);
-    padding: 18px 20px;
-    margin-bottom: 20px;
-    backdrop-filter: blur(8px)
-}
-
-.hero-mrp {
-    font-size: 12px;
-    color: rgba(255, 255, 255, .45);
-    text-decoration: line-through;
-    margin-bottom: 6px
-}
-
-.hero-price-row {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-    flex-wrap: wrap;
-    margin-bottom: 6px
-}
-
-.hero-price {
-    font-family: 'Sora', sans-serif;
-    font-size: 38px;
-    color: #fff;
-    line-height: 1
-}
-
-.hero-price-calc {
-    font-size: 12px;
-    color: rgba(255, 255, 255, .5)
-}
-
-.hero-gst {
-    font-size: 11px;
-    color: rgba(255, 255, 255, .4);
-    margin-bottom: 10px
-}
-
-.hero-save {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    background: rgba(22, 163, 74, .15);
-    border: 1px solid rgba(22, 163, 74, .3);
-    color: #4ade80;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 4px 12px;
-    border-radius: 20px
-}
-
-@media(max-width:680px) {
-    .hero-price-block {
-        padding: 14px 16px;
-        margin-bottom: 16px;
-        border-radius: var(--r12)
-    }
-
-    .hero-mrp {
-        font-size: 11px;
-        margin-bottom: 4px
-    }
-
-    .hero-price {
-        font-size: 28px
-    }
-
-    .hero-price-calc {
-        font-size: 11px
-    }
-
-    .hero-gst {
-        font-size: 10px;
+    .hero-title {
+        font-family: 'Sora', sans-serif;
+        font-size: 30px;
+        font-weight: 800;
+        color: #fff;
+        line-height: 1.25;
         margin-bottom: 8px
     }
 
-    .hero-save {
-        font-size: 10px;
-        padding: 3px 10px
+    .hero-sub {
+        font-size: 13px;
+        color: rgba(255, 255, 255, .6);
+        font-weight: 400;
+        margin-bottom: 18px;
+        line-height: 1.6
     }
-}
 
-@media(max-width:480px) {
-    .hero-price {
-        font-size: 24px
+    @media(max-width:680px) {
+        .hero-left {
+            padding-bottom: 20px
+        }
+
+        .hero-cat {
+            font-size: 9px;
+            padding: 3px 12px;
+            gap: 4px;
+            margin-bottom: 12px
+        }
+
+        .hero-title {
+            font-size: 22px;
+            margin-bottom: 6px
+        }
+
+        .hero-sub {
+            font-size: 12px;
+            margin-bottom: 14px
+        }
+    }
+
+    @media(max-width:480px) {
+        .hero-title {
+            font-size: 20px;
+            line-height: 1.3
+        }
+
+        .hero-sub {
+            font-size: 11px
+        }
+    }
+
+    .hero-rating {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 20px
+    }
+
+    .stars {
+        display: flex;
+        gap: 2px
+    }
+
+    .stars svg {
+        width: 14px;
+        height: 14px
+    }
+
+    .r-text {
+        font-size: 12px;
+        color: rgba(255, 255, 255, .65);
+        font-weight: 600
+    }
+
+    .r-div {
+        color: rgba(255, 255, 255, .2)
+    }
+
+    .stock-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: rgba(22, 163, 74, .2);
+        border: 1px solid rgba(22, 163, 74, .4);
+        color: #4ade80;
+        font-size: 10px;
+        font-weight: 800;
+        padding: 3px 10px;
+        border-radius: 20px;
+        letter-spacing: .04em
+    }
+
+    @media(max-width:640px) {
+        .hero-rating {
+            gap: 8px;
+            margin-bottom: 16px
+        }
+
+        .stars svg {
+            width: 13px;
+            height: 13px
+        }
+
+        .r-text {
+            font-size: 11px
+        }
+
+        .stock-pill {
+            font-size: 9px;
+            padding: 2px 8px
+        }
+    }
+
+    /* PRICE BLOCK */
+    .hero-price-block {
+        background: rgba(255, 255, 255, .08);
+        border: 1px solid rgba(255, 255, 255, .15);
+        border-radius: var(--r16);
+        padding: 18px 20px;
+        margin-bottom: 20px;
+        backdrop-filter: blur(8px)
+    }
+
+    .hero-mrp {
+        font-size: 12px;
+        color: rgba(255, 255, 255, .45);
+        text-decoration: line-through;
+        margin-bottom: 6px
     }
 
     .hero-price-row {
-        gap: 8px
-    }
-}
-
-/* QTY + CTA */
-.hero-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-    margin-bottom: 16px
-}
-
-.qty-box {
-    display: flex;
-    align-items: center;
-    border: 2px solid rgba(255, 255, 255, .3);
-    border-radius: var(--r8);
-    overflow: hidden;
-    background: rgba(255, 255, 255, .08)
-}
-
-.qty-box button {
-    width: 36px;
-    height: 42px;
-    background: transparent;
-    border: none;
-    color: #fff;
-    font-size: 18px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background .15s;
-    -webkit-tap-highlight-color: transparent
-}
-
-.qty-box button:hover {
-    background: rgba(255, 255, 255, .15)
-}
-
-.qty-box input {
-    width: 46px;
-    height: 42px;
-    text-align: center;
-    background: transparent;
-    border: none;
-    border-left: 1px solid rgba(255, 255, 255, .2);
-    border-right: 1px solid rgba(255, 255, 255, .2);
-    color: #fff;
-    font-size: 14px;
-    font-weight: 800;
-    outline: none;
-    font-family: 'Inter', sans-serif
-}
-
-.cta-cart {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: var(--green);
-    color: #fff;
-    font-size: 13px;
-    font-weight: 800;
-    padding: 12px 24px;
-    border-radius: var(--r8);
-    border: none;
-    cursor: pointer;
-    transition: background .2s, transform .15s, box-shadow .2s;
-    letter-spacing: .04em;
-    box-shadow: 0 4px 16px rgba(22, 163, 74, .4);
-    -webkit-tap-highlight-color: transparent
-}
-
-.cta-cart:hover {
-    background: #15803d;
-    transform: translateY(-1px);
-    box-shadow: 0 6px 22px rgba(22, 163, 74, .45)
-}
-
-.cta-quote {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(255, 255, 255, .12);
-    color: #fff;
-    font-size: 13px;
-    font-weight: 800;
-    padding: 12px 22px;
-    border-radius: var(--r8);
-    border: 2px solid rgba(255, 255, 255, .3);
-    cursor: pointer;
-    transition: background .2s, border-color .2s;
-    letter-spacing: .04em;
-    -webkit-tap-highlight-color: transparent
-}
-
-.cta-quote:hover {
-    background: rgba(255, 255, 255, .2);
-    border-color: rgba(255, 255, 255, .5)
-}
-
-@media(max-width:640px) {
-    .hero-actions {
-        gap: 10px;
-        margin-bottom: 12px
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 6px
     }
 
-    .qty-box button {
-        width: 34px;
-        height: 40px;
-        font-size: 16px
+    .hero-price {
+        font-family: 'Sora', sans-serif;
+        font-size: 38px;
+        color: #fff;
+        line-height: 1
     }
 
-    .qty-box input {
-        width: 42px;
-        height: 40px;
-        font-size: 13px
-    }
-
-    .cta-cart {
+    .hero-price-calc {
         font-size: 12px;
-        padding: 11px 20px;
-        gap: 6px
+        color: rgba(255, 255, 255, .5)
     }
 
-    .cta-quote {
-        font-size: 12px;
-        padding: 11px 18px;
-        gap: 6px
+    .hero-gst {
+        font-size: 11px;
+        color: rgba(255, 255, 255, .4);
+        margin-bottom: 10px
     }
-}
 
-@media(max-width:480px) {
+    .hero-save {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(22, 163, 74, .15);
+        border: 1px solid rgba(22, 163, 74, .3);
+        color: #4ade80;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 4px 12px;
+        border-radius: 20px
+    }
+
+    @media(max-width:680px) {
+        .hero-price-block {
+            padding: 14px 16px;
+            margin-bottom: 16px;
+            border-radius: var(--r12)
+        }
+
+        .hero-mrp {
+            font-size: 11px;
+            margin-bottom: 4px
+        }
+
+        .hero-price {
+            font-size: 28px
+        }
+
+        .hero-price-calc {
+            font-size: 11px
+        }
+
+        .hero-gst {
+            font-size: 10px;
+            margin-bottom: 8px
+        }
+
+        .hero-save {
+            font-size: 10px;
+            padding: 3px 10px
+        }
+    }
+
+    @media(max-width:480px) {
+        .hero-price {
+            font-size: 24px
+        }
+
+        .hero-price-row {
+            gap: 8px
+        }
+    }
+
+    /* QTY + CTA */
     .hero-actions {
-        flex-direction: column;
-        width: 100%;
-        gap: 8px
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 16px
     }
 
     .qty-box {
-        width: 100%;
-        justify-content: center
+        display: flex;
+        align-items: center;
+        border: 2px solid rgba(255, 255, 255, .3);
+        border-radius: var(--r8);
+        overflow: hidden;
+        background: rgba(255, 255, 255, .08)
     }
 
-    .cta-cart,
+    .qty-box button {
+        width: 36px;
+        height: 42px;
+        background: transparent;
+        border: none;
+        color: #fff;
+        font-size: 18px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background .15s;
+        -webkit-tap-highlight-color: transparent
+    }
+
+    .qty-box button:hover {
+        background: rgba(255, 255, 255, .15)
+    }
+
+    .qty-box input {
+        width: 46px;
+        height: 42px;
+        text-align: center;
+        background: transparent;
+        border: none;
+        border-left: 1px solid rgba(255, 255, 255, .2);
+        border-right: 1px solid rgba(255, 255, 255, .2);
+        color: #fff;
+        font-size: 14px;
+        font-weight: 800;
+        outline: none;
+        font-family: 'Inter', sans-serif
+    }
+
+    .cta-cart {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--green);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 800;
+        padding: 12px 24px;
+        border-radius: var(--r8);
+        border: none;
+        cursor: pointer;
+        transition: background .2s, transform .15s, box-shadow .2s;
+        letter-spacing: .04em;
+        box-shadow: 0 4px 16px rgba(22, 163, 74, .4);
+        -webkit-tap-highlight-color: transparent
+    }
+
+    .cta-cart:hover {
+        background: #15803d;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 22px rgba(22, 163, 74, .45)
+    }
+
     .cta-quote {
-        width: 100%;
-        justify-content: center
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(255, 255, 255, .12);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 800;
+        padding: 12px 22px;
+        border-radius: var(--r8);
+        border: 2px solid rgba(255, 255, 255, .3);
+        cursor: pointer;
+        transition: background .2s, border-color .2s;
+        letter-spacing: .04em;
+        -webkit-tap-highlight-color: transparent
     }
-}
 
-/* HERO LINKS */
-.hero-links {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap
-}
+    .cta-quote:hover {
+        background: rgba(255, 255, 255, .2);
+        border-color: rgba(255, 255, 255, .5)
+    }
 
-.hero-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11px;
-    font-weight: 700;
-    color: rgba(255, 255, 255, .6);
-    border: 1px solid rgba(255, 255, 255, .15);
-    padding: 6px 14px;
-    border-radius: 20px;
-    cursor: pointer;
-    transition: background .2s, color .2s, border-color .2s;
-    background: transparent;
-    -webkit-tap-highlight-color: transparent
-}
+    @media(max-width:640px) {
+        .hero-actions {
+            gap: 10px;
+            margin-bottom: 12px
+        }
 
-.hero-link:hover {
-    background: rgba(255, 255, 255, .1);
-    color: #fff;
-    border-color: rgba(255, 255, 255, .3)
-}
+        .qty-box button {
+            width: 34px;
+            height: 40px;
+            font-size: 16px
+        }
 
-.hero-link.wa {
-    color: #4ade80;
-    border-color: rgba(74, 222, 128, .3)
-}
+        .qty-box input {
+            width: 42px;
+            height: 40px;
+            font-size: 13px
+        }
 
-.hero-link.wa:hover {
-    background: rgba(74, 222, 128, .1)
-}
+        .cta-cart {
+            font-size: 12px;
+            padding: 11px 20px;
+            gap: 6px
+        }
 
-.hero-link svg {
-    width: 13px;
-    height: 13px;
-    flex-shrink: 0
-}
+        .cta-quote {
+            font-size: 12px;
+            padding: 11px 18px;
+            gap: 6px
+        }
+    }
 
-@media(max-width:640px) {
+    @media(max-width:480px) {
+        .hero-actions {
+            flex-direction: column;
+            width: 100%;
+            gap: 8px
+        }
+
+        .qty-box {
+            width: 100%;
+            justify-content: center
+        }
+
+        .cta-cart,
+        .cta-quote {
+            width: 100%;
+            justify-content: center
+        }
+    }
+
+    /* HERO LINKS */
     .hero-links {
-        gap: 6px
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap
     }
 
     .hero-link {
-        font-size: 10px;
-        padding: 5px 12px;
-        gap: 5px
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 700;
+        color: rgba(255, 255, 255, .6);
+        border: 1px solid rgba(255, 255, 255, .15);
+        padding: 6px 14px;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: background .2s, color .2s, border-color .2s;
+        background: transparent;
+        -webkit-tap-highlight-color: transparent
+    }
+
+    .hero-link:hover {
+        background: rgba(255, 255, 255, .1);
+        color: #fff;
+        border-color: rgba(255, 255, 255, .3)
+    }
+
+    .hero-link.wa {
+        color: #4ade80;
+        border-color: rgba(74, 222, 128, .3)
+    }
+
+    .hero-link.wa:hover {
+        background: rgba(74, 222, 128, .1)
     }
 
     .hero-link svg {
-        width: 12px;
-        height: 12px
-    }
-}
-
-@media(max-width:480px) {
-    .hero-links {
-        justify-content: center
+        width: 13px;
+        height: 13px;
+        flex-shrink: 0
     }
 
-    .hero-link {
-        flex: 1;
-        min-width: calc(50% - 3px);
-        justify-content: center
+    @media(max-width:640px) {
+        .hero-links {
+            gap: 6px
+        }
+
+        .hero-link {
+            font-size: 10px;
+            padding: 5px 12px;
+            gap: 5px
+        }
+
+        .hero-link svg {
+            width: 12px;
+            height: 12px
+        }
     }
-}
 
-/* RIGHT IMAGE CARD */
-.hero-right {
-    position: relative;
-    align-self: stretch;
-    display: flex;
-    flex-direction: column;
-}
+    @media(max-width:480px) {
+        .hero-links {
+            justify-content: center
+        }
 
-.hero-img-card {
-    background: #fff;
-    border-radius: var(--r20) var(--r20) 0 0;
-    padding: 24px 24px 0;
-    box-shadow: var(--sh3);
-    position: relative;
-    overflow: hidden;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-}
+        .hero-link {
+            flex: 1;
+            min-width: calc(50% - 3px);
+            justify-content: center
+        }
+    }
 
-.hero-img-wrap {
-    position: relative;
-    flex: 1;
-    min-height: 480px;
-    cursor: zoom-in;
-    overflow: hidden;
-    border-radius: var(--r12);
-    background: #f8fafc;
-    display: flex;
-    align-items: center;
-    justify-content: center
-}
-
-.hero-img-wrap img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    padding: 12px;
-    transition: transform .5s cubic-bezier(.25, .46, .45, .94)
-}
-
-.hero-img-wrap:hover img {
-    transform: scale(1.08)
-}
-
-@media(max-width:860px) {
+    /* RIGHT IMAGE CARD */
     .hero-right {
-        margin-top: 20px
+        position: relative;
+        align-self: stretch;
+        display: flex;
+        flex-direction: column;
     }
 
     .hero-img-card {
-        border-radius: var(--r16) var(--r16) 0 0;
-        padding: 20px 20px 0
+        background: #fff;
+        border-radius: var(--r20) var(--r20) 0 0;
+        padding: 24px 24px 0;
+        box-shadow: var(--sh3);
+        position: relative;
+        overflow: hidden;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
     }
 
     .hero-img-wrap {
-        min-height: 280px
-    }
-}
-
-@media(max-width:640px) {
-    .hero-img-card {
-        padding: 16px 16px 0;
-        border-radius: var(--r12) var(--r12) 0 0
-    }
-
-    .hero-img-wrap {
-        min-height: 240px;
-        border-radius: var(--r8)
+        position: relative;
+        flex: 1;
+        min-height: 480px;
+        cursor: zoom-in;
+        overflow: hidden;
+        border-radius: var(--r12);
+        background: #f8fafc;
+        display: flex;
+        align-items: center;
+        justify-content: center
     }
 
     .hero-img-wrap img {
-        padding: 8px
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        padding: 12px;
+        transition: transform .5s cubic-bezier(.25, .46, .45, .94)
     }
-}
 
-@media(max-width:480px) {
-    .hero-img-wrap {
-        min-height: 200px
+    .hero-img-wrap:hover img {
+        transform: scale(1.08)
     }
-}
 
-.img-badge-tl {
-    position: absolute;
-    top: 12px;
-    left: 12px;
-    z-index: 5
-}
+    @media(max-width:860px) {
+        .hero-right {
+            margin-top: 20px
+        }
 
-.img-badge-tr {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    z-index: 5
-}
+        .hero-img-card {
+            border-radius: var(--r16) var(--r16) 0 0;
+            padding: 20px 20px 0
+        }
 
-.b-stock {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background: var(--green);
-    color: #fff;
-    font-size: 10px;
-    font-weight: 800;
-    padding: 4px 10px;
-    border-radius: 20px;
-    letter-spacing: .04em
-}
+        .hero-img-wrap {
+            min-height: 280px
+        }
+    }
 
-.b-best {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background: var(--red);
-    color: #fff;
-    font-size: 10px;
-    font-weight: 800;
-    padding: 4px 10px;
-    border-radius: 20px;
-    letter-spacing: .04em
-}
+    @media(max-width:640px) {
+        .hero-img-card {
+            padding: 16px 16px 0;
+            border-radius: var(--r12) var(--r12) 0 0
+        }
 
-.hero-ships {
-    position: absolute;
-    top: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(22, 163, 74, .1);
-    border: 1px solid rgba(22, 163, 74, .25);
-    color: var(--green);
-    font-size: 10px;
-    font-weight: 700;
-    padding: 4px 12px;
-    border-radius: 20px;
-    white-space: nowrap;
-    z-index: 5
-}
+        .hero-img-wrap {
+            min-height: 240px;
+            border-radius: var(--r8)
+        }
 
-@media(max-width:640px) {
+        .hero-img-wrap img {
+            padding: 8px
+        }
+    }
 
-    .img-badge-tl,
-    .img-badge-tr {
-        top: 8px
+    @media(max-width:480px) {
+        .hero-img-wrap {
+            min-height: 200px
+        }
     }
 
     .img-badge-tl {
-        left: 8px
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        z-index: 5
     }
 
     .img-badge-tr {
-        right: 8px
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        z-index: 5
     }
 
-    .b-stock,
+    .b-stock {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: var(--green);
+        color: #fff;
+        font-size: 10px;
+        font-weight: 800;
+        padding: 4px 10px;
+        border-radius: 20px;
+        letter-spacing: .04em
+    }
+
     .b-best {
-        font-size: 9px;
-        padding: 3px 8px
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: var(--red);
+        color: #fff;
+        font-size: 10px;
+        font-weight: 800;
+        padding: 4px 10px;
+        border-radius: 20px;
+        letter-spacing: .04em
     }
 
     .hero-ships {
-        font-size: 9px;
-        padding: 3px 10px;
-        top: 8px
+        position: absolute;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(22, 163, 74, .1);
+        border: 1px solid rgba(22, 163, 74, .25);
+        color: var(--green);
+        font-size: 10px;
+        font-weight: 700;
+        padding: 4px 12px;
+        border-radius: 20px;
+        white-space: nowrap;
+        z-index: 5
     }
-}
 
-.thumb-strip {
-    display: flex;
-    gap: 8px;
-    padding: 14px 0 20px;
-    overflow-x: auto;
-    scrollbar-width: none
-}
+    @media(max-width:640px) {
 
-.thumb-strip::-webkit-scrollbar {
-    display: none
-}
+        .img-badge-tl,
+        .img-badge-tr {
+            top: 8px
+        }
 
-.thumb-item {
-    flex-shrink: 0;
-    width: 54px;
-    height: 54px;
-    border: 2px solid var(--border);
-    border-radius: var(--r8);
-    overflow: hidden;
-    background: #f8fafc;
-    cursor: pointer;
-    transition: border-color .2s, box-shadow .2s;
-    -webkit-tap-highlight-color: transparent
-}
+        .img-badge-tl {
+            left: 8px
+        }
 
-.thumb-item:hover {
-    border-color: var(--navy)
-}
+        .img-badge-tr {
+            right: 8px
+        }
 
-.thumb-item.on {
-    border-color: var(--navy);
-    box-shadow: 0 0 0 3px rgba(10, 36, 99, .12)
-}
+        .b-stock,
+        .b-best {
+            font-size: 9px;
+            padding: 3px 8px
+        }
 
-.thumb-item img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    padding: 4px
-}
+        .hero-ships {
+            font-size: 9px;
+            padding: 3px 10px;
+            top: 8px
+        }
+    }
 
-@media(max-width:640px) {
     .thumb-strip {
-        gap: 6px;
-        padding: 12px 0 16px
+        display: flex;
+        gap: 8px;
+        padding: 14px 0 20px;
+        overflow-x: auto;
+        scrollbar-width: none
+    }
+
+    .thumb-strip::-webkit-scrollbar {
+        display: none
     }
 
     .thumb-item {
-        width: 48px;
-        height: 48px;
-        border-width: 1.5px
+        flex-shrink: 0;
+        width: 54px;
+        height: 54px;
+        border: 2px solid var(--border);
+        border-radius: var(--r8);
+        overflow: hidden;
+        background: #f8fafc;
+        cursor: pointer;
+        transition: border-color .2s, box-shadow .2s;
+        -webkit-tap-highlight-color: transparent
+    }
+
+    .thumb-item:hover {
+        border-color: var(--navy)
+    }
+
+    .thumb-item.on {
+        border-color: var(--navy);
+        box-shadow: 0 0 0 3px rgba(10, 36, 99, .12)
     }
 
     .thumb-item img {
-        padding: 3px
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        padding: 4px
     }
-}
-.variant-pills {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
 
-.variant-pill-dark {
-    padding: 9px 16px;
-    border: 1.5px solid rgba(255,255,255,.25);
-    border-radius: var(--r8);
-    background: rgba(255,255,255,.06);
-    color: rgba(255,255,255,.75);
-    font-size: 12px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all .15s;
-    font-family: 'Inter', sans-serif;
-    -webkit-tap-highlight-color: transparent;
-}
+    @media(max-width:640px) {
+        .thumb-strip {
+            gap: 6px;
+            padding: 12px 0 16px
+        }
 
-.variant-pill-dark:hover {
-    border-color: #fff;
-    color: #fff;
-}
+        .thumb-item {
+            width: 48px;
+            height: 48px;
+            border-width: 1.5px
+        }
 
-.variant-pill-dark.selected {
-    border-color: var(--navy);
-    background: var(--navy);
-    color: #fff;
-}
-.hero-size-slider-wrap {
-    background: rgba(255,255,255,.08);
-    border: 1px solid rgba(255,255,255,.15);
-    border-radius: var(--r8);
-    padding: 10px 14px;
-}
+        .thumb-item img {
+            padding: 3px
+        }
+    }
 
-.hero-size-slider {
-    width: 100%;
-    height: 5px;
-    border-radius: 4px;
-    background: rgba(255,255,255,.25);
-    outline: none;
-    -webkit-appearance: none;
-    appearance: none;
-    cursor: pointer;
-}
+    .variant-pills {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
 
-.hero-size-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: #fff;
-    border: 3px solid var(--navy);
-    cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0,0,0,.3);
-    transition: transform .15s;
-}
+    .variant-pill-dark {
+        padding: 9px 16px;
+        border: 1.5px solid rgba(255, 255, 255, .25);
+        border-radius: var(--r8);
+        background: rgba(255, 255, 255, .06);
+        color: rgba(255, 255, 255, .75);
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all .15s;
+        font-family: 'Inter', sans-serif;
+        -webkit-tap-highlight-color: transparent;
+    }
 
-.hero-size-slider::-webkit-slider-thumb:hover {
-    transform: scale(1.15);
-}
+    .variant-pill-dark:hover {
+        border-color: #fff;
+        color: #fff;
+    }
 
-.hero-size-slider::-moz-range-thumb {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: #fff;
-    border: 3px solid var(--navy);
-    cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0,0,0,.3);
-}
+    .variant-pill-dark.selected {
+        border-color: var(--navy);
+        background: var(--navy);
+        color: #fff;
+    }
 
+    .hero-size-slider-wrap {
+        background: rgba(255, 255, 255, .08);
+        border: 1px solid rgba(255, 255, 255, .15);
+        border-radius: var(--r8);
+        padding: 10px 14px;
+    }
+
+    .hero-size-slider {
+        width: 100%;
+        height: 5px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, .25);
+        outline: none;
+        -webkit-appearance: none;
+        appearance: none;
+        cursor: pointer;
+    }
+
+    .hero-size-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #fff;
+        border: 3px solid var(--navy);
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, .3);
+        transition: transform .15s;
+    }
+
+    .hero-size-slider::-webkit-slider-thumb:hover {
+        transform: scale(1.15);
+    }
+
+    .hero-size-slider::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #fff;
+        border: 3px solid var(--navy);
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, .3);
+    }
+
+    .write-review-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #0a2463;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 800;
+        padding: 8px 16px;
+        border-radius: 20px;
+        border: none;
+        cursor: pointer;
+        letter-spacing: .04em;
+        transition: background .2s, transform .15s;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .write-review-btn:hover {
+        background: #061540;
+        transform: translateY(-1px);
+    }
+
+    /* ── SUMMARY ── */
+    .review-summary {
+        display: flex;
+        gap: 24px;
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border);
+        background: #fafbff;
+        flex-wrap: wrap;
+    }
+
+    .rev-avg-block {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-width: 100px;
+        flex-shrink: 0;
+    }
+
+    .rev-avg-num {
+        font-family: 'Sora', sans-serif;
+        font-size: 52px;
+        font-weight: 800;
+        color: #0a2463;
+        line-height: 1;
+        margin-bottom: 6px;
+    }
+
+    .rev-stars-big {
+        display: flex;
+        gap: 3px;
+        margin-bottom: 6px;
+    }
+
+    .rev-star-svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .rev-total-count {
+        font-size: 11px;
+        color: var(--faint);
+        font-weight: 600;
+    }
+
+    /* ── RATING BARS ── */
+    .rev-bars {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        justify-content: center;
+        min-width: 180px;
+    }
+
+    .rev-bar-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .rev-bar-lbl {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--muted);
+        width: 30px;
+        flex-shrink: 0;
+    }
+
+    .rev-bar-track {
+        flex: 1;
+        height: 8px;
+        background: #e2e8f0;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .rev-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #f59e0b, #fbbf24);
+        border-radius: 4px;
+        transition: width .6s cubic-bezier(.25, .46, .45, .94);
+    }
+
+    .rev-bar-cnt {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--faint);
+        width: 20px;
+        text-align: right;
+        flex-shrink: 0;
+    }
+
+    /* ── REVIEW LIST ── */
+    .review-list {
+        padding: 0;
+    }
+
+    .rev-item {
+        padding: 18px 24px;
+        border-bottom: 1px solid #f1f5f9;
+        transition: background .15s;
+    }
+
+    .rev-item:last-child {
+        border-bottom: none;
+    }
+
+    .rev-item:hover {
+        background: #fafbff;
+    }
+
+    .rev-item-hdr {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+        flex-wrap: wrap;
+    }
+
+    .rev-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #0a2463, #1a3a9a);
+        color: #fff;
+        font-size: 15px;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-family: 'Sora', sans-serif;
+    }
+
+    .rev-name-block {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .rev-name {
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--text);
+        margin-bottom: 3px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .rev-verified {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        color: #16a34a;
+        font-size: 9px;
+        font-weight: 800;
+        padding: 2px 8px;
+        border-radius: 20px;
+        letter-spacing: .04em;
+    }
+
+    .rev-verified svg {
+        width: 10px;
+        height: 10px;
+    }
+
+    .rev-date {
+        font-size: 10px;
+        color: var(--faint);
+    }
+
+    .rev-item-stars {
+        display: flex;
+        gap: 2px;
+    }
+
+    .rev-item-stars svg {
+        width: 13px;
+        height: 13px;
+    }
+
+    .rev-text {
+        font-size: 13px;
+        color: #374151;
+        line-height: 1.7;
+        margin-top: 8px;
+    }
+
+    .rev-photo {
+        margin-top: 10px;
+        max-height: 120px;
+        border-radius: 8px;
+        object-fit: cover;
+        cursor: zoom-in;
+        border: 1px solid var(--border);
+    }
+
+    /* ── EMPTY STATE ── */
+    .rev-empty {
+        padding: 48px 24px;
+        text-align: center;
+        color: var(--faint);
+    }
+
+    .rev-empty svg {
+        width: 48px;
+        height: 48px;
+        margin: 0 auto 14px;
+        opacity: .3;
+        display: block;
+    }
+
+    .rev-empty p:first-of-type {
+        font-size: 15px;
+        font-weight: 800;
+        color: #64748b;
+        margin-bottom: 6px;
+    }
+
+    .rev-empty p:last-of-type {
+        font-size: 12px;
+        color: #94a3b8;
+    }
+
+    /* ── LOADING ── */
+    .rev-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 40px 24px;
+        color: var(--faint);
+        font-size: 13px;
+    }
+
+    .rev-spinner {
+        width: 20px;
+        height: 20px;
+        border: 2px solid #e2e8f0;
+        border-top-color: #0a2463;
+        border-radius: 50%;
+        animation: spin .7s linear infinite;
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* ── PAGINATION ── */
+    .rev-pagination {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 16px;
+        border-top: 1px solid var(--border);
+    }
+
+    .rev-page-btn {
+        background: #0a2463;
+        color: #fff;
+        border: none;
+        padding: 8px 20px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background .2s, opacity .2s;
+        font-family: 'Sora', sans-serif;
+    }
+
+    .rev-page-btn:disabled {
+        opacity: .4;
+        cursor: not-allowed;
+    }
+
+    .rev-page-btn:not(:disabled):hover {
+        background: #061540;
+    }
+
+    .rev-page-info {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 600;
+    }
+
+
+    /* ════════════════════════════════
+   REVIEW MODAL
+════════════════════════════════ */
+    .rev-modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, .6);
+        backdrop-filter: blur(6px);
+        z-index: 400;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+    }
+
+    .rev-modal-overlay.open {
+        display: flex;
+    }
+
+    .rev-modal-sheet {
+        background: #fff;
+        border-radius: 20px;
+        max-width: 500px;
+        width: 100%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 24px 80px rgba(0, 0, 0, .2);
+        animation: modalSlideUp .3s cubic-bezier(.34, 1.56, .64, 1);
+    }
+
+    @keyframes modalSlideUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px) scale(.96);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+
+    .rev-modal-hdr {
+        background: linear-gradient(135deg, #0a2463, #1a3a9a);
+        color: #fff;
+        padding: 18px 22px;
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        flex-shrink: 0;
+    }
+
+    .rev-modal-x {
+        width: 32px;
+        height: 32px;
+        background: rgba(255, 255, 255, .15);
+        border: none;
+        color: #fff;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition: background .2s;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .rev-modal-x:hover {
+        background: rgba(255, 255, 255, .25);
+    }
+
+    .rev-modal-body {
+        padding: 20px 22px;
+    }
+
+    .rev-field {
+        margin-bottom: 16px;
+    }
+
+    .rev-label {
+        display: block;
+        font-size: 10px;
+        font-weight: 800;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: .07em;
+        margin-bottom: 7px;
+    }
+
+    .rev-req {
+        color: #b71c1c;
+    }
+
+    /* STAR PICKER */
+    .rev-star-picker {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .star-pick-svg {
+        width: 34px;
+        height: 34px;
+        color: #e2e8f0;
+        cursor: pointer;
+        transition: color .12s, transform .12s;
+    }
+
+    .star-pick-svg:hover,
+    .star-pick-svg.active {
+        color: #f59e0b;
+        transform: scale(1.15);
+    }
+
+    .rev-rating-label {
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--muted);
+        margin-left: 4px;
+    }
+
+    /* INPUTS */
+    .rev-textarea,
+    .rev-input {
+        width: 100%;
+        border: 1.5px solid var(--border);
+        border-radius: 10px;
+        padding: 11px 13px;
+        font-size: 13px;
+        font-family: 'Sora', sans-serif;
+        color: var(--text);
+        outline: none;
+        background: #fff;
+        transition: border-color .2s, box-shadow .2s;
+        resize: vertical;
+    }
+
+    .rev-textarea:focus,
+    .rev-input:focus {
+        border-color: #0a2463;
+        box-shadow: 0 0 0 3px rgba(10, 36, 99, .1);
+    }
+
+    .rev-char-count {
+        font-size: 10px;
+        color: var(--faint);
+        text-align: right;
+        margin-top: 4px;
+    }
+
+    .rev-row-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    /* PHOTO */
+    .rev-photo-label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border: 2px dashed var(--border);
+        border-radius: 10px;
+        padding: 12px 16px;
+        cursor: pointer;
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 600;
+        transition: border-color .2s, background .2s;
+    }
+
+    .rev-photo-label:hover {
+        border-color: #0a2463;
+        background: #f0f4ff;
+    }
+
+    /* ERROR */
+    .rev-error {
+        background: #fff1f2;
+        border: 1px solid #fecdd3;
+        color: #b71c1c;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 10px 14px;
+        border-radius: 8px;
+        margin-bottom: 12px;
+    }
+
+    /* SUBMIT BTN */
+    .rev-submit-btn {
+        flex: 1;
+        background: linear-gradient(135deg, #0a2463, #1a3a9a);
+        color: #fff;
+        border: none;
+        padding: 13px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 800;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        letter-spacing: .04em;
+        transition: opacity .2s, transform .15s;
+        font-family: 'Sora', sans-serif;
+        box-shadow: 0 4px 14px rgba(10, 36, 99, .3);
+    }
+
+    .rev-submit-btn:hover {
+        opacity: .92;
+        transform: translateY(-1px);
+    }
+
+    .rev-submit-btn:disabled {
+        opacity: .55;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .rev-cancel-btn {
+        padding: 13px 20px;
+        border-radius: 10px;
+        border: 1.5px solid var(--border);
+        background: #f8fafc;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--muted);
+        cursor: pointer;
+        font-family: 'Sora', sans-serif;
+        transition: background .2s;
+    }
+
+    .rev-cancel-btn:hover {
+        background: #fff;
+        color: var(--text);
+    }
+
+    /* SUCCESS STATE */
+    .rev-success {
+        text-align: center;
+        padding: 32px 24px;
+    }
+
+    .rev-success-icon {
+        width: 64px;
+        height: 64px;
+        background: #f0fdf4;
+        border: 2px solid #bbf7d0;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 16px;
+    }
+
+    .rev-success-icon svg {
+        width: 32px;
+        height: 32px;
+        color: #16a34a;
+    }
+
+    .rev-success h3 {
+        font-size: 18px;
+        font-weight: 800;
+        color: var(--text);
+        margin-bottom: 8px;
+    }
+
+    .rev-success p {
+        font-size: 13px;
+        color: var(--muted);
+        line-height: 1.6;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media(max-width:640px) {
+        .review-summary {
+            padding: 14px 16px;
+            gap: 16px;
+        }
+
+        .rev-avg-num {
+            font-size: 40px;
+        }
+
+        .rev-item {
+            padding: 14px 16px;
+        }
+
+        .rev-avatar {
+            width: 36px;
+            height: 36px;
+            font-size: 13px;
+        }
+
+        .rev-text {
+            font-size: 12px;
+        }
+
+        .rev-row-2 {
+            grid-template-columns: 1fr;
+            gap: 0;
+        }
+
+        .rev-modal-hdr {
+            padding: 16px 18px;
+        }
+
+        .rev-modal-body {
+            padding: 16px 18px;
+        }
+
+        .star-pick-svg {
+            width: 30px;
+            height: 30px;
+        }
+
+        .rev-modal-sheet {
+            border-radius: 16px;
+        }
+    }
+
+    @media(max-width:480px) {
+        .rev-bars {
+            min-width: 100%;
+        }
+
+        .write-review-btn {
+            font-size: 10px;
+            padding: 7px 12px;
+        }
+    }
     </style>
 </head>
 
@@ -5168,7 +5996,17 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
         <?php if(!empty($product['subtitle'])): ?>
         <p class="mob-desc"><?= htmlspecialchars($product['subtitle']) ?></p>
         <?php endif; ?>
-
+        <?php if (!empty($brandInfo)): ?>
+        <div style="padding:8px 16px 0;">
+            <span
+                style="font-size:13px;font-weight:700;color:#1A1E2E;text-transform:uppercase;letter-spacing:0.07em;margin-right:6px;">Brands
+                :</span>
+            <a href="brand-products.php?slug=<?= urlencode($brandInfo['slug']) ?>"
+                style="font-size:13px;font-weight:800;color:#0a2463;text-decoration:none;border-bottom:1.5px solid #0a2463;">
+                <?= htmlspecialchars($brandInfo['name']) ?>
+            </a>
+        </div>
+        <?php endif; ?>
         <!-- 4. RATING + STOCK ROW -->
         <div class="mob-rating">
             <div class="stars">
@@ -5180,8 +6018,9 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
                 </svg>
                 <?php endfor; ?>
             </div>
-            <span class="mob-rating-text"><?= $product['rating'] ?>/5.0</span>
+            <span class="mob-rating-text" id="mobRatingNum"><?= $product['rating'] ?>/5.0</span>
             <span class="mob-rating-div">|</span>
+            <span class="mob-rating-text" id="mobReviewCount" style="display:none;"></span>
             <span class="mob-rating-text"><?= htmlspecialchars($product['orders_count']) ?> Orders</span>
             <?php if($product['in_stock']): ?>
             <span class="mob-stock"><?= htmlspecialchars($product['stock_label']) ?></span>
@@ -5219,7 +6058,7 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
             <?= htmlspecialchars($product['min_order_unit']) ?></p>
 
         <!-- 7. VARIANTS — Size / Disc MOC / Pressure Rating (STATIC for now — no DB data wired yet, per your instruction) -->
-<?php renderVariants($variantGroups, 'mobile'); ?>
+        <?php renderVariants($variantGroups, 'mobile'); ?>
 
         <!-- 8. PCARD LINKS ROW (Call / WhatsApp / Bulk Quote) — same onclick handlers as before -->
         <div class="pcard-links" style="display:flex;flex-direction:row;gap:8px;padding:14px 16px 0;">
@@ -5349,136 +6188,125 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
                         <?php endforeach; ?>
                     </div>
                     <!-- Trust badges inside card bottom -->
-                    <div class="tbadges" style="padding:0 0 16px">
-                        <div class="tbadge"><svg fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd"
-                                    d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                    clip-rule="evenodd" />
-                            </svg>
-                            <p>ISO Cert.</p>
-                        </div>
-                        <div class="tbadge"><svg fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd"
-                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                    clip-rule="evenodd" />
-                            </svg>
-                            <p>IBR Appr.</p>
-                        </div>
-                        <div class="tbadge"><svg fill="currentColor" viewBox="0 0 20 20">
-                                <path
-                                    d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
-                                <path
-                                    d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z" />
-                            </svg>
-                            <p>Fast Del.</p>
-                        </div>
-                        <div class="tbadge"><svg fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                                <path fill-rule="evenodd"
-                                    d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                    clip-rule="evenodd" />
-                            </svg>
-                            <p>Genuine</p>
-                        </div>
-                    </div>
+                    
                 </div>
             </div>
             <!-- LEFT: Info + Price + Actions -->
-          <div class="hero-left au">
-   
-    <!-- 2. PRODUCT NAME -->
-    <h1 class="hero-title" style="font-family:'Inter',sans-serif;font-size:26px;font-weight:800;margin-top:10px;">
-        <?= htmlspecialchars($product['name']) ?>
-    </h1>
-    <?php if(!empty($product['subtitle'])): ?>
-    <p class="hero-sub" style="font-family:'Inter',sans-serif;"><?= htmlspecialchars($product['subtitle']) ?></p>
-    <?php endif; ?>
+            <div class="hero-left au">
 
-    <!-- 3. RATING + ORDERS + IN STOCK -->
-    <div class="hero-rating" style="font-family:'Inter',sans-serif;">
-        <div class="stars">
-            <?php $r=floatval($product['rating']); for($st=1;$st<=5;$st++): ?>
-            <svg fill="currentColor" viewBox="0 0 20 20"
-                style="color:<?= $st<=$r?'#fbbf24':'rgba(255,255,255,.2)' ?>">
-                <path
-                    d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-            </svg>
-            <?php endfor; ?>
-        </div>
-        <span class="r-text"><?= $product['rating'] ?>/5.0</span>
-        <span class="r-div">|</span>
-        <span class="r-text"><?= htmlspecialchars($product['orders_count']) ?> Orders</span>
-        <?php if($product['in_stock']): ?>
-        <span class="stock-pill">
-            <svg fill="currentColor" viewBox="0 0 20 20" style="width:10px;height:10px">
-                <path fill-rule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                    clip-rule="evenodd" />
-            </svg>
-            <?= htmlspecialchars($product['stock_label']) ?>
-        </span>
-        <?php endif; ?>
-    </div>
+                <!-- 2. PRODUCT NAME -->
+                <h1 class="hero-title"
+                    style="font-family:'Inter',sans-serif;font-size:26px;font-weight:800;margin-top:10px;">
+                    <?= htmlspecialchars($product['name']) ?>
+                </h1>
+                <?php if(!empty($product['subtitle'])): ?>
+                <p class="hero-sub" style="font-family:'Inter',sans-serif;">
+                    <?= htmlspecialchars($product['subtitle']) ?></p>
+                <?php endif; ?>
+                <?php if (!empty($brandInfo)): ?>
+                <div style="margin-bottom:12px;">
+                    <span
+                        style="font-size:13px;font-weight:700;color:rgba(255, 255, 255, 0.8);text-transform:uppercase;letter-spacing:0.08em;margin-right:8px;">Brands
+                        :</span>
+                    <a href="brand-products.php?slug=<?= urlencode($brandInfo['slug']) ?>"
+                        style="font-size:15px;font-weight:800;color:#fff;text-decoration:none;border-bottom:1.5px solid rgba(255,255,255,0.35);padding-bottom:1px;transition:border-color 0.2s;"
+                        onmouseover="this.style.borderColor='#fff'"
+                        onmouseout="this.style.borderColor='rgba(255,255,255,0.35)'">
+                        <?= htmlspecialchars($brandInfo['name']) ?>
+                    </a>
+                </div>
+                <?php endif; ?>
+                <!-- 3. RATING + ORDERS + IN STOCK -->
+                <div class="hero-rating" style="font-family:'Inter',sans-serif;">
+                    <div class="stars">
+                        <?php $r=floatval($product['rating']); for($st=1;$st<=5;$st++): ?>
+                        <svg fill="currentColor" viewBox="0 0 20 20"
+                            style="color:<?= $st<=$r?'#fbbf24':'rgba(255,255,255,.2)' ?>">
+                            <path
+                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                        <?php endfor; ?>
+                    </div>
+                    <span class="r-text" id="heroRatingNum"><?= $product['rating'] ?>/5.0</span>
+                    <span class="r-div">|</span>
+                    <span class="r-text" id="heroReviewCount" style="display:none;"></span>
+                    <span class="r-text"><?= htmlspecialchars($product['orders_count']) ?> Orders</span>
+                    <?php if($product['in_stock']): ?>
+                    <span class="stock-pill">
+                        <svg fill="currentColor" viewBox="0 0 20 20" style="width:10px;height:10px">
+                            <path fill-rule="evenodd"
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                clip-rule="evenodd" />
+                        </svg>
+                        <?= htmlspecialchars($product['stock_label']) ?>
+                    </span>
+                    <?php endif; ?>
+                </div>
 
-    <!-- 4. PRICE + MRP + GST, single line -->
-    <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:16px;font-family:'Inter',sans-serif;">
-        <span id="product-total-price" style="font-family:'Inter',sans-serif;font-weight:800;font-size:32px;color:#fff;"><?= formatINR($product['price_min']) ?></span>
-        <span style="font-size:14px;color:rgba(255,255,255,.45);text-decoration:line-through;"><?= formatINR($mrpDisplay) ?></span>
-        <?php if($savings > 0): ?>
-        <span class="hero-save">
-            <svg fill="currentColor" viewBox="0 0 20 20" style="width:12px;height:12px">
-                <path fill-rule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                    clip-rule="evenodd" />
-            </svg>
-            <?= round((($mrpDisplay - $product['price_min']) / $mrpDisplay) * 100) ?>% OFF
-        </span>
-        <?php endif; ?>
-        <span style="font-family:'Inter',sans-serif;font-size:11px;border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:4px 12px;color:rgba(255,255,255,.7);">
-            + <?= $product['gst_percent'] ?>% GST applicable
-        </span>
-    </div>
+                <!-- 4. PRICE + MRP + GST, single line -->
+                <div
+                    style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:16px;font-family:'Inter',sans-serif;">
+                    <span id="product-total-price"
+                        style="font-family:'Inter',sans-serif;font-weight:800;font-size:32px;color:#fff;"><?= formatINR($product['price_min']) ?></span>
+                    <span
+                        style="font-size:14px;color:rgba(255,255,255,.45);text-decoration:line-through;"><?= formatINR($mrpDisplay) ?></span>
+                    <?php if($savings > 0): ?>
+                    <span class="hero-save">
+                        <svg fill="currentColor" viewBox="0 0 20 20" style="width:12px;height:12px">
+                            <path fill-rule="evenodd"
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                clip-rule="evenodd" />
+                        </svg>
+                        <?= round((($mrpDisplay - $product['price_min']) / $mrpDisplay) * 100) ?>% OFF
+                    </span>
+                    <?php endif; ?>
+                    <span
+                        style="font-family:'Inter',sans-serif;font-size:11px;border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:4px 12px;color:rgba(255,255,255,.7);">
+                        + <?= $product['gst_percent'] ?>% GST applicable
+                    </span>
+                </div>
 
-    <!-- 5. QTY + ADD TO CART + REQUEST QUOTE -->
-    <div class="hero-actions">
-        <div class="qty-box">
-            <button onclick="decreaseQuantity()">−</button>
-            <input type="number" id="qty-hero" value="1" min="1" readonly>
-            <button onclick="increaseQuantity()">+</button>
-        </div>
-        <button onclick="addToCart()" class="cta-cart" style="font-family:'Inter',sans-serif;">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:16px;height:16px">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-            ADD TO CART
-        </button>
-        <button onclick="openQuoteModal()" class="cta-quote" style="font-family:'Inter',sans-serif;">REQUEST QUOTE</button>
-    </div>
-    <p style="font-size:11px;color:rgba(255,255,255,.4);margin-bottom:20px;font-family:'Inter',sans-serif;">
-        Min. Order: <?= $product['min_order'] ?> <?= htmlspecialchars($product['min_order_unit']) ?>
-    </p>
+                <!-- 5. QTY + ADD TO CART + REQUEST QUOTE -->
+                <div class="hero-actions">
+                    <div class="qty-box">
+                        <button onclick="decreaseQuantity()">−</button>
+                        <input type="number" id="qty-hero" value="1" min="1" readonly>
+                        <button onclick="increaseQuantity()">+</button>
+                    </div>
+                    <button onclick="addToCart()" class="cta-cart" style="font-family:'Inter',sans-serif;">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:16px;height:16px">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        ADD TO CART
+                    </button>
+                    <button onclick="openQuoteModal()" class="cta-quote" style="font-family:'Inter',sans-serif;">REQUEST
+                        QUOTE</button>
+                </div>
+                <p style="font-size:11px;color:rgba(255,255,255,.4);margin-bottom:20px;font-family:'Inter',sans-serif;">
+                    Min. Order: <?= $product['min_order'] ?> <?= htmlspecialchars($product['min_order_unit']) ?>
+                </p>
 
-<?php renderVariants($variantGroups, 'desktop'); ?>
+                <?php renderVariants($variantGroups, 'desktop'); ?>
 
-    <!-- Secondary links -->
-    <div class="hero-links">
-        <button class="hero-link" style="font-family:'Inter',sans-serif;">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-            </svg>
-            +91 84688-51160
-        </button>
-        <button onclick="buyOnChat()" class="hero-link wa" style="font-family:'Inter',sans-serif;">
-            <svg fill="currentColor" viewBox="0 0 24 24">
-                <path
-                    d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-            </svg>
-            Buy on WhatsApp
-        </button>
-    </div>
-</div>
+                <!-- Secondary links -->
+                <div class="hero-links">
+                    <button class="hero-link" style="font-family:'Inter',sans-serif;">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                        +91 84688-51160
+                    </button>
+                    <button onclick="buyOnChat()" class="hero-link wa" style="font-family:'Inter',sans-serif;">
+                        <svg fill="currentColor" viewBox="0 0 24 24">
+                            <path
+                                d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                        </svg>
+                        Buy on WhatsApp
+                    </button>
+                </div>
+            </div>
 
 
 
@@ -5697,6 +6525,7 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
             </div>
             <?php endif; ?>
 
+
         </div><!-- /left-col -->
 
         <!-- ══ RIGHT SIDEBAR ══ -->
@@ -5739,9 +6568,187 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
             <?php endif; ?>
 
         </div><!-- /right-col -->
+             <div class="block review-block au" id="reviewSection">
 
+        <!-- Header -->
+        <div class="block-head" style="background:#f0f4ff;border-bottom:1px solid #dce4ff;">
+            <span class="block-head-title" style="color:#0a2463;">
+                <svg fill="currentColor" viewBox="0 0 20 20" style="width:15px;height:15px;color:#f59e0b">
+                    <path
+                        d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+                Customer Reviews
+            </span>
+            <button class="write-review-btn" onclick="openReviewModal()">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+                Write a Review
+            </button>
+        </div>
+        <!-- Search + Sort Toolbar -->
+        <div class="rev-toolbar">
+            <div class="rev-search-wrap">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input type="text" id="revSearchInput" class="rev-search-input" placeholder="Search customer reviews"
+                    oninput="filterReviews()">
+            </div>
+            <div class="rev-sort-wrap">
+                <select id="revSortSelect" class="rev-sort-select" onchange="loadReviews(1)">
+                    <option value="recent">Most Recent</option>
+                    <option value="highest">Highest Rating</option>
+                    <option value="lowest">Lowest Rating</option>
+                </select>
+            </div>
+        </div>
+        <!-- Rating Summary -->
+        <div class="review-summary" id="reviewSummary">
+            <div class="rev-avg-block">
+                <div class="rev-avg-num" id="revAvgNum">—</div>
+                <div class="rev-stars-big" id="revStarsBig">
+                    <?php for($s=1;$s<=5;$s++): ?>
+                    <svg fill="currentColor" viewBox="0 0 20 20" class="rev-star-svg" style="color:#e2e8f0">
+                        <path
+                            d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                    <?php endfor; ?>
+                </div>
+                <div class="rev-total-count" id="revTotalCount">0 Reviews</div>
+            </div>
+            <div class="rev-bars">
+                <?php for($s=5;$s>=1;$s--): ?>
+                <div class="rev-bar-row">
+                    <span class="rev-bar-lbl"><?= $s ?> ★</span>
+                    <div class="rev-bar-track">
+                        <div class="rev-bar-fill" id="revBar<?= $s ?>" style="width:0%"></div>
+                    </div>
+                    <span class="rev-bar-cnt" id="revBarCnt<?= $s ?>">0</span>
+                </div>
+                <?php endfor; ?>
+            </div>
+        </div>
+
+        <!-- Reviews List -->
+        <div class="review-list" id="reviewList">
+            <div class="rev-loading" id="revLoading">
+                <div class="rev-spinner"></div>
+                <span>Loading reviews…</span>
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="rev-pagination" id="revPagination" style="display:none">
+            <button class="rev-page-btn" id="revPrevBtn" onclick="loadReviews(revPage-1)" disabled>‹
+                Prev</button>
+            <span class="rev-page-info" id="revPageInfo">1 of 1</span>
+            <button class="rev-page-btn" id="revNextBtn" onclick="loadReviews(revPage+1)">Next ›</button>
+        </div>
+
+    </div>
     </div><!-- /page-body -->
 
+    <!-- /review-block -->
+     
+
+    <!-- ════ WRITE REVIEW MODAL ════ -->
+    <div id="reviewModal" class="rev-modal-overlay" onclick="handleRevModalClick(event)">
+        <div class="rev-modal-sheet">
+
+            <!-- Header -->
+            <div class="rev-modal-hdr">
+                <div>
+                    <div style="font-size:11px;color:rgba(255,255,255,.6);font-weight:600;margin-bottom:2px;">
+                        <?= htmlspecialchars($product['name']) ?>
+                    </div>
+                    <h2 style="font-size:17px;font-weight:800;display:flex;align-items:center;gap:8px;">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:18px;height:18px">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                        Write Your Review
+                    </h2>
+                </div>
+                <button class="rev-modal-x" onclick="closeReviewModal()">✕</button>
+            </div>
+
+            <!-- Body -->
+            <div class="rev-modal-body">
+
+                <!-- Star Rating Picker -->
+                <div class="rev-field">
+                    <label class="rev-label">RATING <span class="rev-req">*</span></label>
+                    <div class="rev-star-picker" id="starPicker">
+                        <?php for($s=1;$s<=5;$s++): ?>
+                        <svg data-val="<?= $s ?>" onclick="setRating(<?= $s ?>)" onmouseover="hoverRating(<?= $s ?>)"
+                            onmouseout="hoverRating(0)" fill="currentColor" viewBox="0 0 20 20" class="star-pick-svg">
+                            <path
+                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                        <?php endfor; ?>
+                        <span class="rev-rating-label" id="ratingLabel">0 / 5</span>
+                    </div>
+                    <input type="hidden" id="selectedRating" value="0">
+                </div>
+
+                <!-- Review Text -->
+                <div class="rev-field">
+                    <label class="rev-label">YOUR REVIEW <span class="rev-req">*</span></label>
+                    <textarea id="reviewText" class="rev-textarea"
+                        placeholder="Share your experience with this product…" rows="4"></textarea>
+                    <div class="rev-char-count" id="charCount">0 / 500</div>
+                </div>
+
+                <!-- Name + Email -->
+                <div class="rev-row-2">
+                    <div class="rev-field">
+                        <label class="rev-label">NAME</label>
+                        <input type="text" id="reviewName" class="rev-input" placeholder="Your name">
+                    </div>
+                    <div class="rev-field">
+                        <label class="rev-label">EMAIL <span
+                                style="color:var(--faint);font-size:9px;">(optional)</span></label>
+                        <input type="email" id="reviewEmail" class="rev-input" placeholder="your@email.com">
+                    </div>
+                </div>
+
+                <!-- Photo Upload -->
+                <div class="rev-field">
+                    <label class="rev-label">ADD PHOTO <span
+                            style="color:var(--faint);font-size:9px;">(optional)</span></label>
+                    <label class="rev-photo-label" id="photoLabel" for="reviewPhoto">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                            style="width:20px;height:20px;color:#94a3b8">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span id="photoLabelText">Click to upload photo</span>
+                        <input type="file" id="reviewPhoto" accept="image/*" style="display:none"
+                            onchange="handlePhotoChange(this)">
+                    </label>
+                    <img id="photoPreview" src="" alt=""
+                        style="display:none;margin-top:8px;max-height:100px;border-radius:8px;object-fit:cover;">
+                </div>
+
+                <!-- Error message -->
+                <div id="revError" class="rev-error" style="display:none"></div>
+
+                <!-- Submit Buttons -->
+                <div style="display:flex;gap:10px;margin-top:4px;">
+                    <button class="rev-submit-btn" id="revSubmitBtn" onclick="submitReview()">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:15px;height:15px">
+                            <path stroke-linecap="round" stroke-linejo in="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Submit Review
+                    </button>
+                    <button class="rev-cancel-btn" onclick="closeReviewModal()">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <!-- ════════════════════════ TRUST STRIP ════════════════════════ -->
     <div class="tstrip">
         <div class="tstrip-inner">
@@ -5812,8 +6819,8 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
                         style="font-size:13px;font-weight:700;color:#0a2463" id="totalItems">0</span></div>
                 <div style="display:flex;justify-content:space-between;margin-bottom:14px"><span
                         style="font-size:17px;font-weight:800;color:#1e293b">Grand Total</span><span
-                        style="font-family:'Sora',sans-serif;font-size:26px;color:#b71c1c"
-                        id="grandTotal">₹0</span></div>
+                        style="font-family:'Sora',sans-serif;font-size:26px;color:#b71c1c" id="grandTotal">₹0</span>
+                </div>
                 <div class="cart-btns">
                     <button class="btn-wa" onclick="proceedToWhatsApp()">
                         <svg style="width:18px;height:18px" fill="currentColor" viewBox="0 0 24 24">
@@ -5873,6 +6880,7 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
             <div id="miniModalBody" style="padding:16px"></div>
         </div>
     </div>
+
     <a href="https://wa.me/918468851160?text=Hi%2C%20I%20am%20interested%20in%20your%20products.%20Please%20share%20details."
         id="wa-float-btn" target="_blank" rel="noopener noreferrer" onclick="proceedToWhatsApp()">
         <svg fill="currentColor" viewBox="0 0 24 24">
@@ -5918,30 +6926,30 @@ $allProductsJSON  = json_encode($allProducts,   JSON_UNESCAPED_UNICODE|JSON_HEX_
         return p.toLocaleString('en-IN');
     }
 
-function updateTotalPrice() {
-    const qtyEl = document.getElementById('quantity');
-    const qty = parseInt(qtyEl ? qtyEl.value : 1) || 1;
+    function updateTotalPrice() {
+        const qtyEl = document.getElementById('quantity');
+        const qty = parseInt(qtyEl ? qtyEl.value : 1) || 1;
 
-    const totalPriceEl = document.getElementById('product-total-price');
-    if (totalPriceEl) totalPriceEl.textContent = '₹' + formatPrice(unitPriceValue * qty);
+        const totalPriceEl = document.getElementById('product-total-price');
+        if (totalPriceEl) totalPriceEl.textContent = '₹' + formatPrice(unitPriceValue * qty);
 
-    const curQtyEl = document.getElementById('current-quantity');
-    if (curQtyEl) curQtyEl.textContent = qty;
+        const curQtyEl = document.getElementById('current-quantity');
+        if (curQtyEl) curQtyEl.textContent = qty;
 
-    const unitPriceEl = document.getElementById('unit-price-display');
-    if (unitPriceEl) unitPriceEl.textContent = '₹' + formatPrice(unitPriceValue);
+        const unitPriceEl = document.getElementById('unit-price-display');
+        if (unitPriceEl) unitPriceEl.textContent = '₹' + formatPrice(unitPriceValue);
 
-    const sd = document.getElementById('sideQtyDisplay');
-    if (sd) sd.value = qty;
-    const sp = document.getElementById('side-price');
-    if (sp) sp.textContent = '₹' + formatPrice(unitPriceValue * qty);
-    // mob-quantity sync
-    const mq = document.getElementById('mob-quantity');
-    if (mq) mq.value = qty;
-    // mob price sync
-    const mobPrice = document.querySelector('.mob-price');
-    if (mobPrice) mobPrice.textContent = '₹' + formatPrice(unitPriceValue * qty);
-}
+        const sd = document.getElementById('sideQtyDisplay');
+        if (sd) sd.value = qty;
+        const sp = document.getElementById('side-price');
+        if (sp) sp.textContent = '₹' + formatPrice(unitPriceValue * qty);
+        // mob-quantity sync
+        const mq = document.getElementById('mob-quantity');
+        if (mq) mq.value = qty;
+        // mob price sync
+        const mobPrice = document.querySelector('.mob-price');
+        if (mobPrice) mobPrice.textContent = '₹' + formatPrice(unitPriceValue * qty);
+    }
 
     function increaseQuantity() {
         const mob = document.getElementById('quantity');
@@ -6194,21 +7202,403 @@ function updateTotalPrice() {
         }
         setTimeout(loadCartFromStorage, 200);
     });
-// NAYA (daal):
-function selectVariantDesktop(slug, value, btnEl) {
-    document.querySelectorAll('.' + slug + ' .variant-pill-dark')
-        .forEach(b => b.classList.remove('selected'));
-    btnEl.classList.add('selected');
-    document.querySelectorAll('.' + slug + '-label')
-        .forEach(lbl => lbl.textContent = value);
-}
+    // NAYA (daal):
+    function selectVariantDesktop(slug, value, btnEl) {
+        document.querySelectorAll('.' + slug + ' .variant-pill-dark')
+            .forEach(b => b.classList.remove('selected'));
+        btnEl.classList.add('selected');
+        document.querySelectorAll('.' + slug + '-label')
+            .forEach(lbl => lbl.textContent = value);
+    }
 
-function updateMobLabel(slug, value) {
-    document.querySelectorAll('.' + slug + '-mob-label')
-        .forEach(lbl => lbl.textContent = value);
-}
-
+    function updateMobLabel(slug, value) {
+        document.querySelectorAll('.' + slug + '-mob-label')
+            .forEach(lbl => lbl.textContent = value);
+    }
     </script>
+
+    <script>
+    (function() {
+        /* ── CONFIG ── */
+        const PRODUCT_ID = <?= $pid ?>;
+        const HANDLER_URL = 'review_handler.php';
+
+        /* ── STATE ── */
+        let revPage = 1;
+        let revTotal = 0;
+        let revPer = 5;
+        let selRating = 0;
+        let submitting = false;
+
+        /* ── LABELS ── */
+        const RATING_LABELS = ['', 'Terrible', 'Poor', 'Average', 'Good', 'Excellent'];
+
+        /* ═══════════════════════════════
+           LOAD REVIEWS
+        ═══════════════════════════════ */
+        window.loadReviews = function(page) {
+            page = Math.max(1, page || 1);
+            revPage = page;
+
+            const list = document.getElementById('reviewList');
+            list.innerHTML =
+                `<div class="rev-loading"><div class="rev-spinner"></div><span>Loading reviews…</span></div>`;
+
+            const sortVal = document.getElementById('revSortSelect')?.value || 'recent';
+            fetch(`${HANDLER_URL}?action=get&product_id=${PRODUCT_ID}&page=${page}&sort=${sortVal}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) throw new Error(data.message || 'Error');
+
+                    revTotal = data.total;
+                    revPer = data.per;
+
+                    /* Update summary */
+                    updateSummary(data.avg, data.total, data.breakdown);
+
+                    /* Render reviews */
+                    if (!data.reviews.length && page === 1) {
+                        list.innerHTML = `
+                        <div class="rev-empty">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                    d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                            </svg>
+                            <p>No reviews yet</p>
+                            <p>Be the first to review this product!</p>
+                        </div>`;
+                    } else {
+                        list.innerHTML = data.reviews.map(rv => renderReviewItem(rv)).join('');
+                    }
+
+                    /* Pagination */
+                    const totalPages = Math.ceil(revTotal / revPer);
+                    const pg = document.getElementById('revPagination');
+                    if (totalPages > 1) {
+                        pg.style.display = 'flex';
+                        document.getElementById('revPrevBtn').disabled = (page <= 1);
+                        document.getElementById('revNextBtn').disabled = (page >= totalPages);
+                        document.getElementById('revPageInfo').textContent = `${page} of ${totalPages}`;
+                    } else {
+                        pg.style.display = 'none';
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('reviewList').innerHTML =
+                        `<div class="rev-empty"><p>Failed to load reviews.</p><p>${err.message}</p></div>`;
+                });
+        };
+
+        function updateSummary(avg, total, breakdown) {
+            document.getElementById('revAvgNum').textContent = avg > 0 ? avg.toFixed(1) : '—';
+            document.getElementById('revTotalCount').textContent = total + (total === 1 ? ' Review' : ' Reviews');
+
+            /* Stars — bottom review block */
+            const starsEl = document.getElementById('revStarsBig');
+            starsEl.querySelectorAll('.rev-star-svg').forEach((s, i) => {
+                s.style.color = (i + 1) <= Math.round(avg) ? '#f59e0b' : '#e2e8f0';
+            });
+
+            /* FIX: Stars — hero (desktop) + mobile badge bhi sync karo */
+            if (total > 0) {
+                document.querySelectorAll('.hero-rating .stars svg').forEach((s, i) => {
+                    s.style.color = (i + 1) <= Math.round(avg) ? '#fbbf24' : 'rgba(255,255,255,.2)';
+                });
+                document.querySelectorAll('.mob-rating .stars svg').forEach((s, i) => {
+                    s.style.color = (i + 1) <= Math.round(avg) ? '#fbbf24' : '#e2e8f0';
+                });
+            }
+
+            /* Bars */
+            for (let s = 1; s <= 5; s++) {
+                const cnt = breakdown[s] || 0;
+                const pct = total > 0 ? Math.round((cnt / total) * 100) : 0;
+                const barEl = document.getElementById('revBar' + s);
+                const cntEl = document.getElementById('revBarCnt' + s);
+                if (barEl) barEl.style.width = pct + '%';
+                if (cntEl) cntEl.textContent = cnt;
+            }
+
+
+            const ratingText = total > 0 ? avg.toFixed(1) + '/5.0' : (avg > 0 ? avg.toFixed(1) + '/5.0' : null);
+            const reviewText = total > 0 ? (total === 1 ? '1 Review' : total + ' Reviews') : '';
+
+            if (ratingText) {
+                const heroR = document.getElementById('heroRatingNum');
+                const mobR = document.getElementById('mobRatingNum');
+                if (heroR) heroR.textContent = ratingText;
+                if (mobR) mobR.textContent = ratingText;
+            }
+
+            const heroRev = document.getElementById('heroReviewCount');
+            const mobRev = document.getElementById('mobReviewCount');
+            if (total > 0) {
+                if (heroRev) {
+                    heroRev.textContent = reviewText;
+                    heroRev.style.display = '';
+                }
+                if (mobRev) {
+                    mobRev.textContent = reviewText;
+                    mobRev.style.display = '';
+                }
+            }
+        }
+
+        function renderReviewItem(rv) {
+            const initials = rv.name.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+            const date = new Date(rv.created_at).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric'
+            });
+            const stars = [1, 2, 3, 4, 5].map(s =>
+                `<svg fill="currentColor" viewBox="0 0 20 20" style="width:13px;height:13px;color:${s<=rv.rating?'#f59e0b':'#e2e8f0'}">
+                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+            </svg>`
+            ).join('');
+
+            const verBadge = rv.is_verified ?
+                `<span class="rev-verified"><svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg> Verified</span>` :
+                '';
+
+            /* Photo: agar hai to avatar isi se bhar jata hai, alag photo block nahi dikhega */
+            const avatarHtml = rv.photo ?
+                `<img src="${escHtml(rv.photo)}" alt="${escHtml(rv.name)}">` :
+                escHtml(initials);
+
+            return `
+<div class="rev-item" data-review-text="${escHtml(rv.review_text.toLowerCase())}" data-review-name="${escHtml(rv.name.toLowerCase())}">
+    <div class="rev-item-hdr">
+        <div style="display:flex;align-items:flex-start;gap:10px;flex:1;min-width:0;">
+            <div class="rev-avatar">${avatarHtml}</div>
+                    <div class="rev-name-block">
+                        <div class="rev-name">
+                            ${escHtml(rv.name)}
+                            ${verBadge}
+                        </div>
+                        <div class="rev-date">${date}</div>
+                    </div>
+                </div>
+                <div class="rev-item-stars">${stars}</div>
+            </div>
+         <div class="rev-text">${escHtml(rv.review_text)}</div>
+        </div>`;
+        }
+
+        function escHtml(str) {
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g,
+                '&quot;');
+        }
+
+        /* ═══════════════════════════════
+           MODAL OPEN / CLOSE
+        ═══════════════════════════════ */
+        window.openReviewModal = function() {
+            resetForm();
+            document.getElementById('reviewModal').classList.add('open');
+            document.body.style.overflow = 'hidden';
+        };
+
+        window.closeReviewModal = function() {
+            document.getElementById('reviewModal').classList.remove('open');
+            document.body.style.overflow = '';
+        };
+
+        window.handleRevModalClick = function(e) {
+            if (e.target === document.getElementById('reviewModal')) closeReviewModal();
+        };
+
+        function resetForm() {
+            selRating = 0;
+            submitting = false;
+            document.getElementById('reviewText').value = '';
+            document.getElementById('reviewName').value = '';
+            document.getElementById('reviewEmail').value = '';
+            document.getElementById('reviewPhoto').value = '';
+            document.getElementById('selectedRating').value = 0;
+            document.getElementById('ratingLabel').textContent = '0 / 5';
+            document.getElementById('charCount').textContent = '0 / 500';
+            document.getElementById('photoPreview').style.display = 'none';
+            document.getElementById('photoLabelText').textContent = 'Click to upload photo';
+            document.getElementById('revError').style.display = 'none';
+            document.getElementById('revSubmitBtn').disabled = false;
+            document.getElementById('revSubmitBtn').innerHTML =
+                `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:15px;height:15px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Submit Review`;
+            updateStarPicker(0);
+            /* Restore form if it was in success state */
+            const body = document.querySelector('.rev-modal-body');
+            if (body.querySelector('.rev-success')) {
+                location.reload(); /* simplest — reloads reviews */
+            }
+        }
+
+        /* ═══════════════════════════════
+           STAR PICKER
+        ═══════════════════════════════ */
+        window.hoverRating = function(val) {
+            const stars = document.querySelectorAll('.star-pick-svg');
+            stars.forEach((s, i) => {
+                s.style.color = (i + 1) <= (val || selRating) ? '#f59e0b' : '#e2e8f0';
+            });
+        };
+
+        window.setRating = function(val) {
+            selRating = val;
+            document.getElementById('selectedRating').value = val;
+            document.getElementById('ratingLabel').textContent = RATING_LABELS[val] + ' (' + val + '/5)';
+            updateStarPicker(val);
+        };
+
+        function updateStarPicker(val) {
+            document.querySelectorAll('.star-pick-svg').forEach((s, i) => {
+                s.style.color = (i + 1) <= val ? '#f59e0b' : '#e2e8f0';
+            });
+        }
+
+        /* ── CHAR COUNT ── */
+        document.getElementById('reviewText').addEventListener('input', function() {
+            const len = this.value.length;
+            document.getElementById('charCount').textContent = len + ' / 500';
+            if (len > 500) this.value = this.value.slice(0, 500);
+        });
+
+        /* ── PHOTO PREVIEW ── */
+        window.handlePhotoChange = function(input) {
+            if (!input.files[0]) return;
+            const file = input.files[0];
+            document.getElementById('photoLabelText').textContent = file.name;
+            const reader = new FileReader();
+            reader.onload = e => {
+                const prev = document.getElementById('photoPreview');
+                prev.src = e.target.result;
+                prev.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        };
+
+        /* ═══════════════════════════════
+           SUBMIT
+        ═══════════════════════════════ */
+        window.submitReview = function() {
+            if (submitting) return;
+
+            const name = document.getElementById('reviewName').value.trim();
+            const email = document.getElementById('reviewEmail').value.trim();
+            const text = document.getElementById('reviewText').value.trim();
+            const rating = parseInt(document.getElementById('selectedRating').value);
+            const photo = document.getElementById('reviewPhoto').files[0];
+
+            /* Client-side validation */
+            let err = '';
+            if (rating < 1 || rating > 5) err = 'Please select a rating (1–5 stars).';
+            else if (text.length < 10) err = 'Review must be at least 10 characters.';
+            else if (name.length < 2) err = 'Please enter your name.';
+            else if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) err = 'Please enter a valid email.';
+
+            if (err) {
+                const errEl = document.getElementById('revError');
+                errEl.textContent = err;
+                errEl.style.display = 'block';
+                errEl.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest'
+                });
+                return;
+            }
+
+            document.getElementById('revError').style.display = 'none';
+            submitting = true;
+            const btn = document.getElementById('revSubmitBtn');
+            btn.disabled = true;
+            btn.innerHTML =
+                `<div class="rev-spinner" style="border-top-color:#fff;width:14px;height:14px;border-width:2px;margin:0;"></div> Submitting…`;
+
+            const fd = new FormData();
+            fd.append('product_id', PRODUCT_ID);
+            fd.append('name', name);
+            fd.append('email', email);
+            fd.append('rating', rating);
+            fd.append('review_text', text);
+            if (photo) fd.append('photo', photo);
+
+            fetch(HANDLER_URL, {
+                    method: 'POST',
+                    body: fd
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        /* Show success */
+                        const body = document.querySelector('.rev-modal-body');
+                        body.innerHTML = `
+                        <div class="rev-success">
+                            <div class="rev-success-icon">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                            </div>
+                            <h3>Thank You! 🎉</h3>
+                            <p>${data.message}</p>
+                            <button onclick="closeReviewModal();loadReviews(1);" style="margin-top:18px;background:#0a2463;color:#fff;border:none;padding:11px 28px;border-radius:20px;font-size:13px;font-weight:800;cursor:pointer;font-family:'Sora',sans-serif;">
+                                View Reviews
+                            </button>
+                        </div>`;
+                    } else {
+                        submitting = false;
+                        btn.disabled = false;
+                        btn.innerHTML =
+                            `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:15px;height:15px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Submit Review`;
+                        const errEl = document.getElementById('revError');
+                        if (errEl) {
+                            errEl.textContent = data.message;
+                            errEl.style.display = 'block';
+                        }
+                    }
+                })
+                .catch(() => {
+                    submitting = false;
+                    btn.disabled = false;
+                    btn.innerHTML = `Submit Review`;
+                    alert('Network error. Please try again.');
+                });
+        };
+
+        /* ── INIT ── */
+        loadReviews(1);
+
+    })();
+    window.filterReviews = function() {
+        const q = (document.getElementById('revSearchInput').value || '').toLowerCase().trim();
+        const items = document.querySelectorAll('#reviewList .rev-item');
+        let visibleCount = 0;
+        items.forEach(item => {
+            const text = item.getAttribute('data-review-text') || '';
+            const name = item.getAttribute('data-review-name') || '';
+            const match = !q || text.includes(q) || name.includes(q);
+            item.style.display = match ? '' : 'none';
+            if (match) visibleCount++;
+        });
+
+        const list = document.getElementById('reviewList');
+        let noMatchEl = document.getElementById('revNoMatch');
+        if (visibleCount === 0 && items.length > 0) {
+            if (!noMatchEl) {
+                noMatchEl = document.createElement('div');
+                noMatchEl.id = 'revNoMatch';
+                noMatchEl.className = 'rev-empty';
+                noMatchEl.innerHTML = '<p>No matching reviews</p><p>Try a different search term</p>';
+                list.appendChild(noMatchEl);
+            }
+            noMatchEl.style.display = '';
+        } else if (noMatchEl) {
+            noMatchEl.style.display = 'none';
+        }
+    };
+    </script>
+
+
+
+
 
     <?php include 'assets/include/footer.php'; ?>
 </body>
