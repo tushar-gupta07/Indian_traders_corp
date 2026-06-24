@@ -151,7 +151,7 @@ function renderCard($p) {
     // Link → cart.php (the new unified detail page)
     $detailUrl = 'cart.php?slug=' . $slug;
 
-    echo '<div class="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500 border-2 border-gray-200 hover:border-secondary overflow-hidden transform hover:-translate-y-2">';
+    echo '<div class="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-200 hover:border-secondary overflow-hidden transform hover:-translate-y-1 hover:scale-[1.02]">';
 
     echo '<div class="relative bg-gray-50 p-8 h-72 flex items-center justify-center overflow-hidden cursor-pointer" onclick="window.location.href=\'' . $detailUrl . '\'">';
     echo '<span class="absolute top-4 left-4 bg-white text-secondary px-3 py-1.5 rounded-lg text-xs font-bold border border-gray-300 shadow-md z-20">' . $category . '</span>';
@@ -159,8 +159,8 @@ function renderCard($p) {
     echo '<img src="' . $image . '" alt="' . $name . '" class="max-w-full h-56 object-contain transform group-hover:scale-110 transition-transform duration-700 relative z-10" loading="lazy" onerror="this.src=\'./assets/images/Globe-Valve-1.png\'">';
     echo '</div>';
 
-    echo '<div class="p-6">';
-    echo '<h3 class="text-lg font-bold text-secondary mb-2 cursor-pointer" onclick="window.location.href=\'' . $detailUrl . '\'">' . $name . '</h3>';
+    echo '<div class="p-5">';
+    echo '<h3 class="text-xl font-bold text-secondary mb-2 leading-tight cursor-pointer" onclick="window.location.href=\'' . $detailUrl . '\'">' . $name . '</h3>';
     echo '<p class="text-gray-600 text-sm mb-3">' . $subtitle . '</p>';
 $priceClass = ((float)$p['price_min'] <= 0) ? 'text-lg font-bold text-gray-500' : 'text-2xl font-extrabold text-secondary';
 echo '<p class="' . $priceClass . ' mb-5">' . $price . '</p>';
@@ -171,9 +171,9 @@ echo '<p class="' . $priceClass . ' mb-5">' . $price . '</p>';
     echo '<span>' . $cert . '</span>';
     echo '</div>';
 
-    echo '<div class="flex gap-3">';
-    echo '<button onclick="window.location.href=\'' . $detailUrl . '\'" class="flex-1 bg-white border-2 border-secondary text-secondary hover:bg-secondary hover:text-white px-4 py-3 rounded-xl font-bold transition-all duration-300 text-sm">View Details</button>';
-    echo '<button onclick="openQuoteModal()" class="flex-1 bg-secondary text-white px-4 py-3 rounded-xl font-bold transition-all duration-300 text-sm">Enquiry</button>';
+    echo '<div class="flex gap-2 mt-4">';
+    echo '<button onclick="window.location.href=\'' . $detailUrl . '\'" class="flex-1 bg-secondary text-white hover:bg-blue-900 px-4 py-3 rounded-xl font-semibold transition-all duration-300 text-sm">View Details</button>';
+    echo '<button onclick="openQuoteModal()" class="flex-1 bg-white border border-secondary text-secondary hover:bg-gray-50 px-4 py-3 rounded-xl font-semibold transition-all duration-300 text-sm">Enquiry</button>';
     echo '</div>';
     echo '</div>';
     echo '</div>';
@@ -290,28 +290,28 @@ echo '<p class="' . $priceClass . ' mb-5">' . $price . '</p>';
      DEFAULT MODE: Original full page UI (100% unchanged)
 ══════════════════════════════════════════════════ -->
 
-<section class="relative bg-secondary overflow-hidden flex items-center" style="min-height:500px;">
-    <div class="container mx-auto px-4 py-20 relative z-10">
+<section class="relative bg-secondary overflow-hidden flex items-center" style="min-height:320px;">
+    <div class="container mx-auto px-4 py-12 relative z-10">
         <div class="max-w-5xl mx-auto text-center">
-            <h1 class="text-5xl font-extrabold text-white mb-6">World-Class Industrial Solutions</h1>
-            <p class="text-xl text-blue-100 mb-12 max-w-3xl mx-auto">
+            <h1 class="text-4xl md:text-5xl font-bold text-white mb-4">World-Class Industrial Solutions</h1>
+            <p class="text-lg text-blue-100 mb-8 max-w-3xl mx-auto">
                 ISO Certified Valves, Pipes &amp; Fittings for Your Industrial Excellence
             </p>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-5xl mx-auto">
                 <div class="bg-white rounded-2xl p-6" style="background:rgba(255,255,255,0.1);">
-                    <div class="text-4xl font-bold text-yellow-400 mb-2"><?= count($allProducts) ?>+</div>
+                    <div class="text-3xl font-bold text-yellow-400 mb-2"><?= count($allProducts) ?>+</div>
                     <div class="text-sm text-white font-semibold">Products</div>
                 </div>
                 <div class="rounded-2xl p-6" style="background:rgba(255,255,255,0.1);">
-                    <div class="text-4xl font-bold text-yellow-400 mb-2">55+</div>
+                    <div class="text-3xl font-bold text-yellow-400 mb-2">55+</div>
                     <div class="text-sm text-white font-semibold">Years Trust</div>
                 </div>
                 <div class="rounded-2xl p-6" style="background:rgba(255,255,255,0.1);">
-                    <div class="text-4xl font-bold text-yellow-400 mb-2">ISO</div>
+                    <div class="text-3xl font-bold text-yellow-400 mb-2">ISO</div>
                     <div class="text-sm text-white font-semibold">Certified</div>
                 </div>
                 <div class="rounded-2xl p-6" style="background:rgba(255,255,255,0.1);">
-                    <div class="text-4xl font-bold text-yellow-400 mb-2">1000+</div>
+                    <div class="text-3xl font-bold text-yellow-400 mb-2">1000+</div>
                     <div class="text-sm text-white font-semibold">Happy Clients</div>
                 </div>
             </div>
@@ -321,7 +321,7 @@ echo '<p class="' . $priceClass . ' mb-5">' . $price . '</p>';
 
 <!-- FILTER BAR — original -->
 <section class="sticky top-0 z-40 bg-white shadow-lg border-b-2 border-gray-200">
-    <div class="container mx-auto px-4 py-4 md:py-6">
+    <div class="container mx-auto px-4 py-2 md:py-3">
         <div class="tabs-scroll flex flex-nowrap md:flex-wrap md:justify-center gap-3 overflow-x-auto" style="-webkit-overflow-scrolling: touch;">
             <button id="btn-all"
                     class="flex-shrink-0 px-6 py-3 rounded-xl font-bold text-sm bg-secondary text-white shadow-lg whitespace-nowrap"
@@ -340,11 +340,11 @@ echo '<p class="' . $priceClass . ' mb-5">' . $price . '</p>';
 </section>
 
 <!-- ALL PRODUCTS -->
-<section id="all-section" class="py-16 bg-gray-50">
+<section id="all-section" class="py-8 bg-gray-50">
     <div class="container mx-auto px-4">
         <div class="text-center mb-12">
-            <h2 class="text-4xl font-extrabold text-gray-900 mb-4">All Industrial Products</h2>
-            <p class="text-xl text-gray-600 max-w-3xl mx-auto">Browse our comprehensive range of premium quality industrial products</p>
+            <h2 class="text-4xl font-bold text-gray-900 mb-4">All Industrial Products</h2>
+            <p class="text-lg text-gray-600 max-w-3xl mx-auto">Browse our comprehensive range of premium quality industrial products</p>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             <?php foreach ($allProducts as $p) { renderCard($p); } ?>
@@ -353,11 +353,11 @@ echo '<p class="' . $priceClass . ' mb-5">' . $price . '</p>';
 </section>
 
 <!-- GATE / GLOBE VALVES -->
-<section id="valves-section" class="py-16 bg-white" style="display:none;">
+<section id="valves-section" class="py-8 bg-white" style="display:none;">
     <div class="container mx-auto px-4">
-        <div class="text-center mb-12">
-            <h2 class="text-4xl font-extrabold text-gray-900 mb-4">Gate / Globe Valves</h2>
-            <p class="text-xl text-gray-600">Premium quality gate and globe valves for industrial applications</p>
+        <div class="text-center mb-8">
+            <h2 class="text-4xl font-bold text-gray-900 mb-4">Gate / Globe Valves</h2>
+            <p class="text-lg text-gray-600">Premium quality gate and globe valves for industrial applications</p>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             <?php foreach ($valves as $p) { renderCard($p); } ?>
@@ -366,11 +366,11 @@ echo '<p class="' . $priceClass . ' mb-5">' . $price . '</p>';
 </section>
 
 <!-- BALL / CHECK VALVES -->
-<section id="ball-section" class="py-16 bg-gray-50" style="display:none;">
+<section id="ball-section" class="py-8 bg-gray-50" style="display:none;">
     <div class="container mx-auto px-4">
         <div class="text-center mb-12">
-            <h2 class="text-4xl font-extrabold text-gray-900 mb-4">Ball / Check Valves</h2>
-            <p class="text-xl text-gray-600">High-performance ball and check valves for precise control</p>
+            <h2 class="text-4xl font-bold text-gray-900 mb-4">Ball / Check Valves</h2>
+            <p class="text-lg text-gray-600">High-performance ball and check valves for precise control</p>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             <?php foreach ($ball as $p) { renderCard($p); } ?>
@@ -379,11 +379,11 @@ echo '<p class="' . $priceClass . ' mb-5">' . $price . '</p>';
 </section>
 
 <!-- PIPES & FITTINGS -->
-<section id="pipes-section" class="py-16 bg-white" style="display:none;">
+<section id="pipes-section" class="py-8 bg-white" style="display:none;">
     <div class="container mx-auto px-4">
         <div class="text-center mb-12">
-            <h2 class="text-4xl font-extrabold text-gray-900 mb-4">Pipes &amp; Fittings</h2>
-            <p class="text-xl text-gray-600">Complete range of pipes and fittings for all applications</p>
+            <h2 class="text-4xl font-bold text-gray-900 mb-4">Pipes &amp; Fittings</h2>
+            <p class="text-lg text-gray-600">Complete range of pipes and fittings for all applications</p>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             <?php foreach ($pipes as $p) { renderCard($p); } ?>
@@ -394,16 +394,25 @@ echo '<p class="' . $priceClass . ' mb-5">' . $price . '</p>';
 <?php endif; ?>
 
 <!-- CTA — shown in both modes -->
-<section class="py-24 bg-secondary text-white">
+<section class="py-12 bg-secondary text-white">
     <div class="container mx-auto px-4 text-center">
-        <h2 class="text-4xl font-extrabold mb-6">Need Expert Assistance?</h2>
-        <p class="text-xl text-blue-100 mb-12 max-w-3xl mx-auto">
+        <h2 class="text-3xl md:text-4xl font-extrabold mb-6">Need Expert Assistance?</h2>
+        <p class="text-lg text-blue-100 mb-8 max-w-3xl mx-auto">
             Our technical team is ready to help you select the perfect products for your requirements
         </p>
-        <div class="flex flex-wrap justify-center gap-5">
-            <a href="tel:+918468851160" class="bg-white text-secondary font-bold px-10 py-5 rounded-xl shadow-2xl text-lg">Call Now</a>
-            <button onclick="openQuoteModal()" class="bg-blue-700 text-white font-bold px-10 py-5 rounded-xl shadow-2xl text-lg border-2 border-white">Request Quote</button>
-        </div>
+        <div class="flex justify-center gap-4 mt-8">
+
+    <a href="tel:+918468851160"
+       class="bg-white text-secondary px-6 py-2 rounded-xl font-bold shadow-lg hover:shadow-xl transition">
+         Call Now
+    </a>
+
+    <button onclick="openQuoteModal()"
+       class="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold shadow-lg border border-blue-600 hover:bg-blue-700 transition">
+         Request Quote
+    </button>
+
+</div>
     </div>
 </section>
 
