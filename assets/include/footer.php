@@ -12,7 +12,7 @@
                 <div class="flex items-center space-x-3 mb-4">
                     <img src="./assets/images/ITC LOGO.png" alt="ITC Logo" class="h-12 w-12 rounded-lg shadow-lg">
                     <div>
-                        <h3 class="text-xl font-bold text-white">Indian Traders Corp</h3>
+                        <p class="text-xl font-bold text-white">Indian Traders Corp</p>
                     </div>
                 </div>
                 <p class="text-sm leading-relaxed text-gray-400">
@@ -25,7 +25,7 @@
 
             <!-- Quick Links -->
             <div>
-                <h4 class="text-lg font-bold text-white mb-4 border-b border-gray-700 pb-2">Quick Links</h4>
+                <h3 class="text-lg font-bold text-white mb-4 border-b border-gray-700 pb-2">Quick Links</h3>
                 <ul class="space-y-2">
                     <li>
                         <a href="index.php"
@@ -64,7 +64,7 @@
 
             <!-- Products -->
             <div>
-                <h4 class="text-lg font-bold text-white mb-4 border-b border-gray-700 pb-2">Our Products</h4>
+                <h3 class="text-lg font-bold text-white mb-4 border-b border-gray-700 pb-2">Our Products</h3>
                 <ul class="space-y-2">
                     <li>
                         <a href="products.php#valves"
@@ -103,7 +103,7 @@
 
             <!-- Contact Info -->
             <div>
-                <h4 class="text-lg font-bold text-white mb-4 border-b border-gray-700 pb-2">Contact Us</h4>
+                <h3 class="text-lg font-bold text-white mb-4 border-b border-gray-700 pb-2">Contact Us</h3>
                 <ul class="space-y-3 text-sm">
                     <li class="flex items-start">
                         <svg class="w-5 h-5 mr-2 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor"

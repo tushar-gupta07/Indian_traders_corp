@@ -3,22 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contact Us - Indian Traders Corp</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#0a2463',
-                        secondary: '#b71c1c',
-                        accent: '#ff6b35',
-                    }
-                }
-            }
+
+    <!-- ✅ Title — keywords ke saath -->
+    <title>Contact Indian Traders Corp | Valves & Pipe Fittings Supplier — Nagpur</title>
+
+    <!-- ✅ Meta Description -->
+    <meta name="description" content="Contact Indian Traders Corp, Gandhibagh Nagpur for valves, pipes & fittings. Call +91 712 234 5678 or fill our form. Mon–Sat 10:30AM–6PM.">
+
+    <!-- ✅ Robots -->
+    <meta name="robots" content="index, follow">
+    <meta name="googlebot" content="index, follow">
+
+    <!-- ✅ Keywords -->
+    <meta name="keywords" content="contact Indian Traders Corp, industrial valves Nagpur, pipe fittings supplier Nagpur, valve supplier contact, Gandhibagh Nagpur">
+
+    <!-- ✅ Publisher & Author -->
+    <meta name="publisher" content="Indian Traders Corp">
+    <meta name="author" content="Indian Traders Corp">
+
+    <!-- ✅ Canonical — apna real domain daalo -->
+    <link rel="canonical" href="https://www.indiantraderscorp.com/contact.php">
+
+    <!-- ✅ Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Contact Indian Traders Corp | Nagpur">
+    <meta property="og:description" content="Get in touch for industrial valves, pipes & fittings. Located in Gandhibagh, Nagpur. Call or fill our enquiry form.">
+    <meta property="og:url" content="https://www.indiantraderscorp.com/contact.php">
+    <meta property="og:site_name" content="Indian Traders Corp">
+    <meta property="og:image" content="https://www.indiantraderscorp.com/assets/images/og-image.jpg">
+
+    <!-- ✅ JSON-LD Schema — ContactPage -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "ContactPage",
+      "name": "Contact Indian Traders Corp",
+      "url": "https://www.inndiantraderscorp.com/contact.php",
+      "description": "Contact page for Indian Traders Corp — industrial valves and pipe fittings supplier in Nagpur",
+      "mainEntity": {
+        "@type": "LocalBusiness",
+        "name": "Indian Traders Corp",
+        "telephone": "+91-712-234-5678",
+        "email": "sales@indiantraderscorp.com",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "Opposite Daga Hospital, Gandhibagh",
+          "addressLocality": "Nagpur",
+          "addressRegion": "Maharashtra",
+          "postalCode": "440002",
+          "addressCountry": "IN"
+        },
+        "openingHoursSpecification": {
+          "@type": "OpeningHoursSpecification",
+          "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],
+          "opens": "10:30",
+          "closes": "18:00"
         }
+      }
+    }
     </script>
-    <style>
+<style>
         /* ========================================
            LAZY LOADING ANIMATIONS
         ======================================== */
@@ -125,7 +169,25 @@
             }
         }
     </style>
+    <!-- Tailwind (keep as-is) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0a2463',
+                        secondary: '#b71c1c',
+                        accent: '#ff6b35',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- ... baaki styles same rakhna ... -->
 </head>
+ 
 <body class="bg-gray-50">
 <?php include 'assets/include/header.php'; ?>
 
@@ -212,7 +274,12 @@
                         <label class="block text-gray-700 font-semibold mb-2">Phone Number *</label>
                         <input type="tel" name="phone" required class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition">
                     </div>
-
+                    <div>
+    <label class="block text-gray-700 font-semibold mb-2">Email Address *</label>
+    <input type="email" name="email" required 
+           class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition"
+           placeholder="yourname@example.com">
+</div>
                     <div>
                         <label class="block text-gray-700 font-semibold mb-2">Subject *</label>
                         <select name="subject" required class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition">
@@ -256,15 +323,16 @@
                 <!-- Map Skeleton -->
                 <div class="skeleton" style="width: 100%; height: 100%;" id="mapSkeleton"></div>
                 <!-- Actual Map (hidden initially) -->
-                <iframe 
-                    id="googleMap"
-                    data-src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3721.2!2d79.08!3d21.15!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMjHCsDA5JzAwLjAiTiA3OcKwMDQnNDguMCJF!5e0!3m2!1sen!2sin!4v1234567890"
-                    width="100%" 
-                    height="100%" 
-                    style="border:0; display: none;" 
-                    allowfullscreen="" 
-                    loading="lazy">
-                </iframe>
+                <iframe
+    id="googleMap"
+    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2719.197409407451!2d79.1033889103749!3d21.151377763008433!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bd4c7366fdba58f%3A0x7c1f0f4eca50c12!2sIndian%20Traders%20Corporation!5e1!3m2!1sen!2sin!4v1782380030330!5m2!1sen!2sin"
+    width="100%"
+    height="100%"
+    style="border:0;"
+    allowfullscreen
+    loading="lazy"
+    referrerpolicy="no-referrer-when-downgrade">
+</iframe>
             </div>
         </div>
     </div>
@@ -381,8 +449,8 @@ const mapObserver = new IntersectionObserver((entries) => {
             const iframe = document.getElementById('googleMap');
             const skeleton = document.getElementById('mapSkeleton');
             
-            if (iframe && iframe.dataset.src) {
-                iframe.src = iframe.dataset.src;
+            if (iframe && iframe.src) {
+                iframe.src = iframe.src;
                 iframe.style.display = 'block';
                 
                 iframe.onload = () => {
