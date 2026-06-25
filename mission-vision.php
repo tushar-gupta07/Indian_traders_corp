@@ -1,10 +1,39 @@
+<?php
+header('X-Robots-Tag: index, follow');
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mission & Vision - Indian Traders Corp</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+   <!-- Primary SEO Meta Tags -->
+<title>Mission, Vision & Core Values | Indian Traders Corp</title>
+<meta name="description" content="Discover Indian Traders Corp mission, vision and values focused on quality valves, fittings, piping solutions and trusted industrial service.">
+<meta name="keywords" content="Indian Traders Corp mission, Indian Traders Corp vision, industrial valve supplier mission, quality valves, pipe fittings, industrial piping solutions, trusted valve supplier, valve supplier India">
+<meta name="robots" content="index, follow">
+<meta name="author" content="Indian Traders Corp">
+<meta name="publisher" content="Indian Traders Corp">
+<meta name="creator" content="Indian Traders Corp">
+<meta name="generator" content="Indian Traders Corp Website">
+
+<!-- Canonical URL -->
+<link rel="canonical" href="https://www.indiantraderscorp.com/mission-vision.php">
+
+<!-- Open Graph / Facebook / WhatsApp -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Mission, Vision & Core Values | Indian Traders Corp">
+<meta property="og:description" content="Discover Indian Traders Corp mission, vision and values focused on quality valves, fittings, piping solutions and trusted industrial service.">
+<meta property="og:url" content="https://www.indiantraderscorp.com/mission-vision.php">
+<meta property="og:site_name" content="Indian Traders Corp">
+<meta property="og:image" content="https://www.indiantraderscorp.com/assets/images/crousel1.jpg">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mission, Vision & Core Values | Indian Traders Corp">
+<meta name="twitter:description" content="Mission, vision and values of Indian Traders Corp focused on quality industrial valves, fittings and piping solutions.">
+<meta name="twitter:image" content="https://www.indiantraderscorp.com/assets/images/crousel1.jpg">
+
+<script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {

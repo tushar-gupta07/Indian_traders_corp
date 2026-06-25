@@ -1,10 +1,39 @@
+<?php
+header('X-Robots-Tag: index, follow');
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Why Choose Indian Traders Corp - Leading Industrial Valve Supplier</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+   <!-- Primary SEO Meta Tags -->
+<title>Why Choose ITC | Industrial Valve Supplier in India</title>
+<meta name="description" content="Why choose Indian Traders Corp for industrial valves, fittings and piping products trusted by power, oil & gas, cement and process industries.">
+<meta name="keywords" content="why choose Indian Traders Corp, Indian Traders Corp, industrial valve supplier India, valve supplier Nagpur, industrial valves, pipe fittings, flanges, IBR valves, API valves, quality industrial products">
+<meta name="robots" content="index, follow">
+<meta name="author" content="Indian Traders Corp">
+<meta name="publisher" content="Indian Traders Corp">
+<meta name="creator" content="Indian Traders Corp">
+<meta name="generator" content="Indian Traders Corp Website">
+
+<!-- Canonical URL -->
+<link rel="canonical" href="https://www.indiantraderscorp.com/why-itc.php">
+
+<!-- Open Graph / Facebook / WhatsApp -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Why Choose ITC | Industrial Valve Supplier in India">
+<meta property="og:description" content="Why choose Indian Traders Corp for industrial valves, fittings and piping products trusted by power, oil & gas, cement and process industries.">
+<meta property="og:url" content="https://www.indiantraderscorp.com/why-itc.php">
+<meta property="og:site_name" content="Indian Traders Corp">
+<meta property="og:image" content="https://www.indiantraderscorp.com/assets/images/crousel1.jpg">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Why Choose ITC | Industrial Valve Supplier in India">
+<meta name="twitter:description" content="Trusted industrial valves, fittings and piping products for power, oil & gas, cement and process industries.">
+<meta name="twitter:image" content="https://www.indiantraderscorp.com/assets/images/crousel1.jpg">
+
+<script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {

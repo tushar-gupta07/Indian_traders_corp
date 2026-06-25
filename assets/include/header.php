@@ -298,10 +298,9 @@ $base = './';
                 <a href="<?= $base ?>index.php">
                     <img src="<?= $base ?>assets/images/ITC LOGO.png" alt="Indian Traders Corp Logo" class="h-12 w-12">
                 </a>
-                <div>
-                    <h1 class="text-xl font-bold text-primary">Indian Traders Corp</h1>
+              <div class="text-xl font-bold text-primary">Indian Traders Corp</div>
                     <p class="text-xs text-gray-600">Since 1969</p>
-                </div>
+                
             </div>
 
             <!-- ── Desktop Search ── -->

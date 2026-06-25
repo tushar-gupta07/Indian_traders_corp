@@ -3,8 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Documentation - Indian Traders Corp</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+   <!-- Primary SEO Meta Tags -->
+<title>Product Documentation & Quality Certificates | Indian Traders Corp</title>
+<meta name="description" content="View Indian Traders Corp documentation, ISO certificates, IBR approvals, MTC reports and compliance documents for valves, fittings and flanges.">
+<meta name="keywords" content="product documentation Indian Traders Corp, ISO certificate, IBR approval, material test certificate, quality certificate, industrial valves documentation, pipe fittings certificates, flanges quality documents, ASTM certificate, ISI certificate">
+<meta name="robots" content="index, follow">
+<meta name="author" content="Indian Traders Corp">
+<meta name="publisher" content="Indian Traders Corp">
+
+<!-- Canonical URL -->
+<link rel="canonical" href="https://www.indiantraderscorp.com/documentation.php">
+
+<!-- Open Graph / Facebook / WhatsApp -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Product Documentation & Quality Certificates | Indian Traders Corp">
+<meta property="og:description" content="Explore verified product documentation, ISO certificates, IBR approvals, material test certificates and compliance documents from Indian Traders Corp.">
+<meta property="og:url" content="https://www.indiantraderscorp.com/documentation.php">
+<meta property="og:site_name" content="Indian Traders Corp">
+<meta property="og:image" content="https://www.indiantraderscorp.com/assets/images/crousel1.jpg">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Product Documentation & Quality Certificates | Indian Traders Corp">
+<meta name="twitter:description" content="View ISO certificates, IBR approvals, material test certificates and industrial product documentation from Indian Traders Corp.">
+<meta name="twitter:image" content="https://www.indiantraderscorp.com/assets/images/crousel1.jpg">
+
+<script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
     theme: {

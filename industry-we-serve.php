@@ -1,10 +1,39 @@
+<?php
+header('X-Robots-Tag: index, follow');
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Industries We Serve - Indian Traders Corp</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+   <!-- Primary SEO Meta Tags -->
+<title>Industries Served | Industrial Valves | Indian Traders Corp</title>
+<meta name="description" content="Indian Traders Corp serves power, oil & gas, cement, water treatment, chemical, pharma, steel and HVAC sectors with valves and piping solutions.">
+<meta name="keywords" content="industries served by Indian Traders Corp, industrial valves supplier, valves for power generation, oil and gas valves, cement plant valves, water treatment valves, chemical industry valves, pharma valves, steel plant valves, HVAC valves, industrial pipe fittings">
+<meta name="robots" content="index, follow">
+<meta name="author" content="Indian Traders Corp">
+<meta name="publisher" content="Indian Traders Corp">
+<meta name="creator" content="Indian Traders Corp">
+<meta name="generator" content="Indian Traders Corp Website">
+
+<!-- Canonical URL -->
+<link rel="canonical" href="https://www.indiantraderscorp.com/industry-we-serve.php">
+
+<!-- Open Graph / Facebook / WhatsApp -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Industries Served | Industrial Valves | Indian Traders Corp">
+<meta property="og:description" content="Indian Traders Corp serves power, oil & gas, cement, water treatment, chemical, pharma, steel and HVAC industries with valves, fittings and piping solutions.">
+<meta property="og:url" content="https://www.indiantraderscorp.com/industry-we-serve.php">
+<meta property="og:site_name" content="Indian Traders Corp">
+<meta property="og:image" content="https://www.indiantraderscorp.com/assets/images/crousel2.jpg">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Industries Served | Industrial Valves | Indian Traders Corp">
+<meta name="twitter:description" content="Valves, fittings and piping solutions for power, oil & gas, cement, water treatment, chemical, pharma, steel and HVAC industries.">
+<meta name="twitter:image" content="https://www.indiantraderscorp.com/assets/images/crousel2.jpg">
+
+<script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -128,7 +157,7 @@ section .mb-12 { margin-bottom: 20px !important; }
         <div class="skeleton banner-image" id="bannerSkeleton" style="width: 100%; height: 100%; display: block;"></div>
         <!-- Actual Image -->
         <img data-src="assets/images/crousel2.jpg" 
-             alt="Industries We Serve - Indian Traders Corp" 
+             alt="Industries served by Indian Traders Corp for industrial valves fittings and piping solutions" 
              class="banner-image"
              id="bannerImage"
              style="width: 100%; height: 100%; display: none; position: absolute; top: 0; left: 0;">
